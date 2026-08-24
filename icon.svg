@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <!-- Background Gradient -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2563EB"/>
+      <stop offset="50%" stop-color="#4F46E5"/>
+      <stop offset="100%" stop-color="#7C3AED"/>
+    </linearGradient>
+
+    <!-- Highlight Sheen -->
+    <linearGradient id="sheenGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.25"/>
+      <stop offset="70%" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+
+    <!-- Drop Shadow Filter -->
+    <filter id="dropShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="24" stdDeviation="20" flood-color="#0F172A" flood-opacity="0.35"/>
+    </filter>
+    <filter id="badgeShadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="12" stdDeviation="12" flood-color="#0F172A" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+
+  <!-- App Icon Base Squircle -->
+  <rect x="60" y="60" width="904" height="904" rx="210" fill="url(#bgGrad)" filter="url(#dropShadow)"/>
+  <rect x="60" y="60" width="904" height="904" rx="210" fill="url(#sheenGrad)"/>
+
+  <!-- Back Card Layer 2 -->
+  <rect x="312" y="217" width="440" height="600" rx="40" fill="#FFFFFF" fill-opacity="0.3" stroke="#FFFFFF" stroke-opacity="0.45" stroke-width="4"/>
+
+  <!-- Middle Card Layer 1 -->
+  <rect x="287" y="237" width="460" height="600" rx="40" fill="#FFFFFF" fill-opacity="0.55" stroke="#FFFFFF" stroke-opacity="0.7" stroke-width="4" filter="url(#dropShadow)"/>
+
+  <!-- Front Card Main -->
+  <g filter="url(#dropShadow)">
+    <rect x="257" y="267" width="480" height="600" rx="40" fill="#FFFFFF" stroke="#FFFFFF" stroke-width="4"/>
+
+    <!-- Top Category Tag -->
+    <rect x="302" y="322" width="140" height="38" rx="12" fill="#E0E7FF"/>
+    <circle cx="320" cy="341" r="6" fill="#4F46E5"/>
+    <rect x="338" y="336" width="88" height="10" rx="4" fill="#6366F1"/>
+
+    <!-- Text Line 1 -->
+    <rect x="302" y="392" width="260" height="16" rx="8" fill="#CBD5E1"/>
+
+    <!-- Text Line 2 with Variable Tag -->
+    <rect x="302" y="446" width="90" height="16" rx="8" fill="#CBD5E1"/>
+    <!-- Slot Pill -->
+    <rect x="407" y="438" width="185" height="32" rx="10" fill="#EEF2FF" stroke="#6366F1" stroke-width="2.5"/>
+    <text x="499" y="460" font-family="sans-serif" font-size="16" font-weight="bold" fill="#4F46E5" text-anchor="middle" dominant-baseline="middle">{ template }</text>
+    <rect x="607" y="446" width="85" height="16" rx="8" fill="#CBD5E1"/>
+
+    <!-- Text Line 3 -->
+    <rect x="302" y="504" width="390" height="16" rx="8" fill="#CBD5E1"/>
+
+    <!-- Text Line 4 with Secondary Slot -->
+    <rect x="302" y="556" width="130" height="16" rx="8" fill="#CBD5E1"/>
+    <rect x="447" y="548" width="140" height="32" rx="10" fill="#F0FDF4" stroke="#10B981" stroke-width="2.5"/>
+    <text x="517" y="570" font-family="sans-serif" font-size="15" font-weight="bold" fill="#059669" text-anchor="middle" dominant-baseline="middle">{ memo }</text>
+
+    <!-- Text Line 5 -->
+    <rect x="302" y="612" width="210" height="16" rx="8" fill="#CBD5E1"/>
+  </g>
+
+  <!-- Fast Action Lightning Badge -->
+  <g filter="url(#badgeShadow)">
+    <circle cx="712" cy="832" r="58" fill="#F59E0B" stroke="#FFFFFF" stroke-width="5"/>
+    <polygon points="716,800 692,834 710,834 706,864 732,828 714,828" fill="#FFFFFF"/>
+  </g>
+</svg>

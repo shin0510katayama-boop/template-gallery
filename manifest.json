@@ -1,0 +1,13 @@
+{
+  "name": "テンプレコピー",
+  "short_name": "テンプレコピー",
+  "description": "よく使う文章テンプレートを保存して、ボタン一つでコピーできるアプリ",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#f7f7f9",
+  "theme_color": "#4F46E5",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
