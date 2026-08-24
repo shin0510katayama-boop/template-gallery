@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>テンプレコピー</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="app-header">
+    <h1>📋 テンプレコピー</h1>
+    <div class="header-actions">
+      <button id="btn-export" class="btn btn-ghost" title="テンプレートをJSONで書き出し">書き出し</button>
+      <label class="btn btn-ghost" title="JSONから読み込み">
+        読み込み
+        <input type="file" id="import-file" accept="application/json" hidden />
+      </label>
+      <button id="btn-new" class="btn btn-primary">+ 新規テンプレート</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="toolbar">
+      <input type="search" id="search" placeholder="タイトル・本文で検索..." />
+      <select id="category-filter">
+        <option value="">すべてのカテゴリ</option>
+      </select>
+    </div>
+
+    <div id="empty-state" class="empty-state" hidden>
+      <p>まだテンプレートがありません。</p>
+      <button id="btn-new-empty" class="btn btn-primary">最初のテンプレートを作成</button>
+    </div>
+
+    <div id="template-grid" class="template-grid"></div>
+  </main>
+
+  <!-- Add/Edit modal -->
+  <dialog id="template-dialog">
+    <form id="template-form" method="dialog">
+      <h2 id="dialog-title">新規テンプレート</h2>
+      <input type="hidden" id="template-id" />
+
+      <label for="field-title">タイトル</label>
+      <input type="text" id="field-title" required placeholder="例: お礼メール" />
+
+      <label for="field-category">カテゴリ</label>
+      <input type="text" id="field-category" list="category-list" placeholder="例: メール" />
+      <datalist id="category-list"></datalist>
+
+      <label for="field-content">本文</label>
+      <textarea id="field-content" rows="10" required placeholder="コピーしたいテキストを入力..."></textarea>
+
+      <div class="dialog-actions">
+        <button type="button" id="btn-cancel" class="btn btn-ghost">キャンセル</button>
+        <button type="submit" class="btn btn-primary">保存</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
