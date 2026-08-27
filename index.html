@@ -54,8 +54,9 @@
       <input type="text" id="field-category" list="category-list" placeholder="例: メール" />
       <datalist id="category-list"></datalist>
 
-      <label for="field-content">本文</label>
-      <textarea id="field-content" rows="10" required placeholder="コピーしたいテキストを入力..."></textarea>
+      <label>分岐(バリエーション)</label>
+      <div id="branches-editor" class="branches-editor"></div>
+      <button type="button" id="btn-add-branch" class="btn btn-ghost btn-small">+ 分岐を追加</button>
 
       <div class="dialog-actions">
         <button type="button" id="btn-cancel" class="btn btn-ghost">キャンセル</button>

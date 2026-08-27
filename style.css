@@ -160,6 +160,29 @@ input:focus, textarea:focus, select:focus {
   align-self: flex-start;
 }
 
+.branch-tabs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.branch-tab {
+  font: inherit;
+  font-size: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 3px 10px;
+  cursor: pointer;
+  background: var(--bg);
+  color: var(--text-muted);
+}
+
+.branch-tab.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
 .card-preview {
   color: var(--text-muted);
   font-size: 0.875rem;
@@ -219,6 +242,59 @@ dialog::backdrop {
   font-size: 0.85rem;
   color: var(--text-muted);
   margin-top: 8px;
+}
+
+.branches-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.branch-row {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.branch-row-head {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.branch-label {
+  flex: 1;
+  font-size: 0.85rem;
+  padding: 7px 10px;
+}
+
+.btn-remove-branch {
+  font: inherit;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  width: 30px;
+  height: 30px;
+  line-height: 1;
+  cursor: pointer;
+  background: var(--surface);
+  color: var(--danger);
+  flex-shrink: 0;
+}
+.btn-remove-branch:hover { background: var(--bg); }
+
+.branch-content {
+  font-size: 0.9rem;
+  resize: vertical;
+}
+
+.btn-small {
+  align-self: flex-start;
+  padding: 6px 12px;
+  font-size: 0.85rem;
+  margin-top: 4px;
 }
 
 .dialog-actions {
