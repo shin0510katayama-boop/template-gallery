@@ -234,13 +234,31 @@ function setSlotBlocks(slots) {
   slots.forEach((s) => slotsEditor.appendChild(renderSlotBlock(s)));
 }
 
+// On touch devices, tapping the "make it a branch" button often collapses the
+// textarea's text selection before the click handler runs (focus moves off
+// the textarea first). Remember the last non-empty selection so the button
+// still has something to act on even if the live selection already collapsed.
+let rememberedSelection = null;
+
+function captureSelection() {
+  const { selectionStart: start, selectionEnd: end } = fieldBody;
+  if (start !== end) rememberedSelection = { start, end };
+}
+
+["select", "mouseup", "touchend", "keyup"].forEach((evt) => {
+  fieldBody.addEventListener(evt, captureSelection);
+});
+
 btnMakeSlot.addEventListener("click", () => {
-  const start = fieldBody.selectionStart;
-  const end = fieldBody.selectionEnd;
+  let { selectionStart: start, selectionEnd: end } = fieldBody;
+  if (start === end && rememberedSelection) {
+    ({ start, end } = rememberedSelection);
+  }
   if (start === end) {
     showToast("先に本文中の文字を選択してください");
     return;
   }
+  rememberedSelection = null;
   const selectedText = fieldBody.value.slice(start, end);
   const slotId = shortId();
   const token = `{{slot:${slotId}}}`;
@@ -296,6 +314,7 @@ function openDialogForNew() {
   fieldTitle.value = "";
   fieldCategory.value = "";
   fieldBody.value = "";
+  rememberedSelection = null;
   setSlotBlocks([]);
   dialog.showModal();
   fieldTitle.focus();
@@ -309,6 +328,7 @@ function openDialogForEdit(id) {
   fieldTitle.value = t.title;
   fieldCategory.value = t.category;
   fieldBody.value = t.body;
+  rememberedSelection = null;
   setSlotBlocks(t.slots.map((s) => ({ ...s, options: s.options.map((o) => ({ ...o })) })));
   dialog.showModal();
   fieldTitle.focus();
