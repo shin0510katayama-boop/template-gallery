@@ -244,51 +244,98 @@ dialog::backdrop {
   margin-top: 8px;
 }
 
-.branches-editor {
+#field-body {
+  resize: vertical;
+  font-size: 0.9rem;
+}
+
+.field-hint {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin: 2px 0 0;
+  line-height: 1.4;
+}
+
+.slots-editor {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  margin-top: 10px;
 }
 
-.branch-row {
-  border: 1px solid var(--border);
+.slot-block {
+  border: 1px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
   border-radius: var(--radius);
   padding: 10px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 
-.branch-row-head {
+.slot-block-head {
   display: flex;
   gap: 6px;
   align-items: center;
 }
 
-.branch-label {
+.slot-label {
   flex: 1;
   font-size: 0.85rem;
   padding: 7px 10px;
 }
 
-.btn-remove-branch {
+.btn-remove-slot {
+  font: inherit;
+  font-size: 0.78rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 10px;
+  cursor: pointer;
+  background: var(--surface);
+  color: var(--danger);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.btn-remove-slot:hover { background: var(--bg); }
+
+.slot-options {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.slot-option-row {
+  display: flex;
+  gap: 6px;
+}
+
+.option-label {
+  flex: 0 0 30%;
+  font-size: 0.82rem;
+  padding: 6px 8px;
+}
+
+.option-text {
+  flex: 1;
+  font-size: 0.82rem;
+  padding: 6px 8px;
+  min-width: 0;
+}
+
+.btn-remove-option {
   font: inherit;
   border: 1px solid var(--border);
   border-radius: 6px;
-  width: 30px;
-  height: 30px;
+  width: 28px;
+  height: 28px;
   line-height: 1;
   cursor: pointer;
   background: var(--surface);
   color: var(--danger);
   flex-shrink: 0;
 }
-.btn-remove-branch:hover { background: var(--bg); }
-
-.branch-content {
-  font-size: 0.9rem;
-  resize: vertical;
-}
+.btn-remove-option:hover { background: var(--bg); }
 
 .btn-small {
   align-self: flex-start;

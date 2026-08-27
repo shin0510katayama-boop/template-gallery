@@ -1,13 +1,15 @@
 const STORAGE_KEY = "templateCopier.templates.v1";
+const TOKEN_RE = /\{\{slot:([a-zA-Z0-9-]+)\}\}/g;
 
-/** @typedef {{id:string,label:string,content:string}} Branch */
-/** @typedef {{id:string,title:string,category:string,branches:Branch[],createdAt:number,updatedAt:number}} Template */
+/** @typedef {{id:string,label:string,text:string}} Option */
+/** @typedef {{id:string,label:string,options:Option[]}} Slot */
+/** @typedef {{id:string,title:string,category:string,body:string,slots:Slot[],createdAt:number,updatedAt:number}} Template */
 
 /** @type {Template[]} */
 let templates = loadTemplates();
 
-/** Which branch index is currently shown/copied per template id (transient, not persisted). @type {Map<string, number>} */
-const selectedBranch = new Map();
+/** Which option is currently selected per template+slot (transient, not persisted). Key: `${templateId}:${slotId}` -> optionId */
+const selections = new Map();
 
 const grid = document.getElementById("template-grid");
 const emptyState = document.getElementById("empty-state");
@@ -21,10 +23,14 @@ const dialogTitle = document.getElementById("dialog-title");
 const fieldId = document.getElementById("template-id");
 const fieldTitle = document.getElementById("field-title");
 const fieldCategory = document.getElementById("field-category");
-const branchesEditor = document.getElementById("branches-editor");
-const btnAddBranch = document.getElementById("btn-add-branch");
+const fieldBody = document.getElementById("field-body");
+const btnMakeSlot = document.getElementById("btn-make-slot");
+const slotsEditor = document.getElementById("slots-editor");
 
 const toast = document.getElementById("toast");
+
+/** In-memory slot list for whatever template is currently open in the dialog. */
+let editingSlots = [];
 
 function loadTemplates() {
   try {
@@ -36,14 +42,30 @@ function loadTemplates() {
   }
 }
 
-// Older saves stored a single `content` string per template. Fold that into
-// a one-item `branches` array so both shapes render the same way.
+// Older saves used a single `content` string, then a `branches` array of
+// full-body alternatives. Fold either into the current body+slots shape:
+// a `branches` array with more than one entry becomes a single slot that
+// spans the whole body, one option per old branch.
 function migrateTemplate(t) {
-  if (Array.isArray(t.branches) && t.branches.length > 0) return t;
-  return {
-    ...t,
-    branches: [{ id: uid(), label: "本文", content: t.content ?? "" }],
-  };
+  if (typeof t.body === "string" && Array.isArray(t.slots)) return t;
+
+  if (Array.isArray(t.branches)) {
+    if (t.branches.length <= 1) {
+      return { ...t, body: t.branches[0]?.content ?? "", slots: [] };
+    }
+    const slotId = shortId();
+    return {
+      ...t,
+      body: `{{slot:${slotId}}}`,
+      slots: [{
+        id: slotId,
+        label: "パターン",
+        options: t.branches.map((b) => ({ id: b.id || uid(), label: b.label || "", text: b.content })),
+      }],
+    };
+  }
+
+  return { ...t, body: t.content ?? "", slots: [] };
 }
 
 function saveTemplates() {
@@ -52,6 +74,11 @@ function saveTemplates() {
 
 function uid() {
   return crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2);
+}
+
+// Short id for inline body tokens, so `{{slot:xxxxxx}}` stays readable in the textarea.
+function shortId() {
+  return Math.random().toString(36).slice(2, 8);
 }
 
 function showToast(message) {
@@ -85,11 +112,23 @@ function escapeHtml(str) {
 }
 function escapeAttr(str) { return escapeHtml(str); }
 
-function branchLabel(b, i) { return b.label.trim() || `分岐${i + 1}`; }
+function optionLabel(o, i) { return o.label.trim() || `選択肢${i + 1}`; }
+function slotLabel(s, i) { return s.label.trim() || `分岐${i + 1}`; }
 
-function currentBranchIndex(t) {
-  const idx = selectedBranch.get(t.id) ?? 0;
-  return Math.min(idx, t.branches.length - 1);
+function selectedOptionId(templateId, slot) {
+  const key = `${templateId}:${slot.id}`;
+  const chosen = selections.get(key);
+  return slot.options.some((o) => o.id === chosen) ? chosen : slot.options[0]?.id;
+}
+
+/** Replace every {{slot:ID}} token in the body with the currently selected option's text. */
+function resolveBody(t) {
+  return t.body.replace(TOKEN_RE, (match, slotId) => {
+    const slot = t.slots.find((s) => s.id === slotId);
+    if (!slot || slot.options.length === 0) return "";
+    const optId = selectedOptionId(t.id, slot);
+    return slot.options.find((o) => o.id === optId)?.text ?? "";
+  });
 }
 
 function render() {
@@ -101,7 +140,8 @@ function render() {
   const matchesQuery = (t) => {
     if (!query) return true;
     if (t.title.toLowerCase().includes(query)) return true;
-    return t.branches.some((b) => b.content.toLowerCase().includes(query) || b.label.toLowerCase().includes(query));
+    if (resolveBody(t).toLowerCase().includes(query)) return true;
+    return t.slots.some((s) => s.options.some((o) => o.text.toLowerCase().includes(query) || o.label.toLowerCase().includes(query)));
   };
 
   const filtered = templates
@@ -113,13 +153,13 @@ function render() {
   grid.hidden = templates.length === 0;
 
   grid.innerHTML = filtered.map((t) => {
-    const idx = currentBranchIndex(t);
-    const active = t.branches[idx];
-    const tabs = t.branches.length > 1
-      ? `<div class="branch-tabs">${t.branches.map((b, i) => `
-          <button type="button" class="branch-tab ${i === idx ? "active" : ""}" data-id="${t.id}" data-idx="${i}">${escapeHtml(branchLabel(b, i))}</button>
-        `).join("")}</div>`
-      : "";
+    const slotRows = t.slots.map((s, si) => {
+      const activeId = selectedOptionId(t.id, s);
+      const pills = s.options.map((o, oi) => `
+        <button type="button" class="branch-tab ${o.id === activeId ? "active" : ""}" data-id="${t.id}" data-slot="${s.id}" data-option="${o.id}">${escapeHtml(optionLabel(o, oi))}</button>
+      `).join("");
+      return `<div class="branch-tabs" title="${escapeAttr(slotLabel(s, si))}">${pills}</div>`;
+    }).join("");
 
     return `
       <article class="template-card" data-id="${t.id}">
@@ -127,8 +167,8 @@ function render() {
           <h3 class="card-title">${escapeHtml(t.title)}</h3>
         </div>
         ${t.category ? `<span class="card-category">${escapeHtml(t.category)}</span>` : ""}
-        ${tabs}
-        <p class="card-preview">${escapeHtml(active.content)}</p>
+        ${slotRows}
+        <p class="card-preview">${escapeHtml(resolveBody(t))}</p>
         <div class="card-actions">
           <button class="btn btn-primary btn-copy" data-id="${t.id}">コピー</button>
           <button class="btn btn-ghost btn-edit" data-id="${t.id}">編集</button>
@@ -139,45 +179,115 @@ function render() {
   }).join("");
 }
 
-function renderBranchRow(branch) {
+// ---- Dialog: body + slot editing ----
+
+function renderOptionRow(option, i) {
   const row = document.createElement("div");
-  row.className = "branch-row";
-  row.dataset.branchId = branch.id;
+  row.className = "slot-option-row";
+  row.dataset.optionId = option.id;
   row.innerHTML = `
-    <div class="branch-row-head">
-      <input type="text" class="branch-label" placeholder="分岐名 (例: 面接後)" value="${escapeAttr(branch.label)}" />
-      <button type="button" class="btn-remove-branch" title="この分岐を削除">×</button>
-    </div>
-    <textarea class="branch-content" rows="6" required placeholder="コピーしたいテキストを入力...">${escapeHtml(branch.content)}</textarea>
+    <input type="text" class="option-label" placeholder="選択肢${i + 1}" value="${escapeAttr(option.label)}" />
+    <input type="text" class="option-text" placeholder="テキスト" value="${escapeAttr(option.text)}" />
+    <button type="button" class="btn-remove-option" title="この選択肢を削除">×</button>
   `;
   return row;
 }
 
-function refreshRemoveButtons() {
-  const rows = branchesEditor.querySelectorAll(".branch-row");
+function renderSlotBlock(slot) {
+  const block = document.createElement("div");
+  block.className = "slot-block";
+  block.dataset.slotId = slot.id;
+
+  const head = document.createElement("div");
+  head.className = "slot-block-head";
+  head.innerHTML = `
+    <input type="text" class="slot-label" placeholder="分岐名 (例: 相手)" value="${escapeAttr(slot.label)}" />
+    <button type="button" class="btn-remove-slot" title="分岐を解除して本文に戻す">分岐を解除</button>
+  `;
+  block.appendChild(head);
+
+  const optionsWrap = document.createElement("div");
+  optionsWrap.className = "slot-options";
+  slot.options.forEach((o, i) => optionsWrap.appendChild(renderOptionRow(o, i)));
+  block.appendChild(optionsWrap);
+
+  const addOptionBtn = document.createElement("button");
+  addOptionBtn.type = "button";
+  addOptionBtn.className = "btn btn-ghost btn-small btn-add-option";
+  addOptionBtn.textContent = "+ 選択肢を追加";
+  block.appendChild(addOptionBtn);
+
+  refreshOptionRemoveButtons(block);
+  return block;
+}
+
+function refreshOptionRemoveButtons(block) {
+  const rows = block.querySelectorAll(".slot-option-row");
   rows.forEach((row) => {
-    const btn = row.querySelector(".btn-remove-branch");
-    btn.hidden = rows.length <= 1;
+    row.querySelector(".btn-remove-option").hidden = rows.length <= 1;
   });
 }
 
-function setBranchRows(branches) {
-  branchesEditor.innerHTML = "";
-  branches.forEach((b) => branchesEditor.appendChild(renderBranchRow(b)));
-  refreshRemoveButtons();
+function setSlotBlocks(slots) {
+  editingSlots = slots;
+  slotsEditor.innerHTML = "";
+  slots.forEach((s) => slotsEditor.appendChild(renderSlotBlock(s)));
 }
 
-btnAddBranch.addEventListener("click", () => {
-  branchesEditor.appendChild(renderBranchRow({ id: uid(), label: "", content: "" }));
-  refreshRemoveButtons();
+btnMakeSlot.addEventListener("click", () => {
+  const start = fieldBody.selectionStart;
+  const end = fieldBody.selectionEnd;
+  if (start === end) {
+    showToast("先に本文中の文字を選択してください");
+    return;
+  }
+  const selectedText = fieldBody.value.slice(start, end);
+  const slotId = shortId();
+  const token = `{{slot:${slotId}}}`;
+
+  fieldBody.value = fieldBody.value.slice(0, start) + token + fieldBody.value.slice(end);
+  fieldBody.focus();
+  fieldBody.setSelectionRange(start + token.length, start + token.length);
+
+  const slot = {
+    id: slotId,
+    label: "",
+    options: [
+      { id: uid(), label: "選択肢1", text: selectedText },
+      { id: uid(), label: "選択肢2", text: "" },
+    ],
+  };
+  const block = renderSlotBlock(slot);
+  slotsEditor.appendChild(block);
+  editingSlots.push(slot);
+  block.querySelector(".slot-label").focus();
 });
 
-branchesEditor.addEventListener("click", (e) => {
-  const btn = e.target.closest(".btn-remove-branch");
-  if (!btn) return;
-  if (branchesEditor.querySelectorAll(".branch-row").length <= 1) return;
-  btn.closest(".branch-row").remove();
-  refreshRemoveButtons();
+slotsEditor.addEventListener("click", (e) => {
+  const removeOptionBtn = e.target.closest(".btn-remove-option");
+  const addOptionBtn = e.target.closest(".btn-add-option");
+  const removeSlotBtn = e.target.closest(".btn-remove-slot");
+
+  if (removeOptionBtn) {
+    const block = removeOptionBtn.closest(".slot-block");
+    if (block.querySelectorAll(".slot-option-row").length <= 1) return;
+    removeOptionBtn.closest(".slot-option-row").remove();
+    refreshOptionRemoveButtons(block);
+  } else if (addOptionBtn) {
+    const block = addOptionBtn.closest(".slot-block");
+    const optionsWrap = block.querySelector(".slot-options");
+    const newRow = renderOptionRow({ id: uid(), label: "", text: "" }, optionsWrap.children.length);
+    optionsWrap.appendChild(newRow);
+    refreshOptionRemoveButtons(block);
+    newRow.querySelector(".option-text").focus();
+  } else if (removeSlotBtn) {
+    const block = removeSlotBtn.closest(".slot-block");
+    const slotId = block.dataset.slotId;
+    const firstOptionText = block.querySelector(".option-text").value;
+    const token = `{{slot:${slotId}}}`;
+    fieldBody.value = fieldBody.value.replace(token, firstOptionText);
+    block.remove();
+  }
 });
 
 function openDialogForNew() {
@@ -185,7 +295,8 @@ function openDialogForNew() {
   fieldId.value = "";
   fieldTitle.value = "";
   fieldCategory.value = "";
-  setBranchRows([{ id: uid(), label: "", content: "" }]);
+  fieldBody.value = "";
+  setSlotBlocks([]);
   dialog.showModal();
   fieldTitle.focus();
 }
@@ -197,9 +308,22 @@ function openDialogForEdit(id) {
   fieldId.value = t.id;
   fieldTitle.value = t.title;
   fieldCategory.value = t.category;
-  setBranchRows(t.branches);
+  fieldBody.value = t.body;
+  setSlotBlocks(t.slots.map((s) => ({ ...s, options: s.options.map((o) => ({ ...o })) })));
   dialog.showModal();
   fieldTitle.focus();
+}
+
+function collectSlotsFromEditor() {
+  return [...slotsEditor.querySelectorAll(".slot-block")].map((block) => ({
+    id: block.dataset.slotId,
+    label: block.querySelector(".slot-label").value.trim(),
+    options: [...block.querySelectorAll(".slot-option-row")].map((row) => ({
+      id: row.dataset.optionId,
+      label: row.querySelector(".option-label").value.trim(),
+      text: row.querySelector(".option-text").value,
+    })),
+  })).filter((s) => s.options.length > 0);
 }
 
 form.addEventListener("submit", () => {
@@ -207,25 +331,22 @@ form.addEventListener("submit", () => {
   const id = fieldId.value;
   const title = fieldTitle.value.trim();
   const category = fieldCategory.value.trim();
+  const body = fieldBody.value;
+  const slots = collectSlotsFromEditor();
 
-  const branches = [...branchesEditor.querySelectorAll(".branch-row")].map((row) => ({
-    id: row.dataset.branchId,
-    label: row.querySelector(".branch-label").value.trim(),
-    content: row.querySelector(".branch-content").value,
-  })).filter((b) => b.content.trim());
-
-  if (!title || branches.length === 0) return;
+  if (!title || !body.trim()) return;
 
   if (id) {
     const t = templates.find((x) => x.id === id);
     if (t) {
       t.title = title;
       t.category = category;
-      t.branches = branches;
+      t.body = body;
+      t.slots = slots;
       t.updatedAt = now;
     }
   } else {
-    templates.push({ id: uid(), title, category, branches, createdAt: now, updatedAt: now });
+    templates.push({ id: uid(), title, category, body, slots, createdAt: now, updatedAt: now });
   }
 
   saveTemplates();
@@ -243,14 +364,15 @@ grid.addEventListener("click", async (e) => {
   if (!id) return;
 
   if (target.classList.contains("branch-tab")) {
-    selectedBranch.set(id, Number(target.dataset.idx));
+    const slotId = target.dataset.slot;
+    const optionId = target.dataset.option;
+    selections.set(`${id}:${slotId}`, optionId);
     render();
   } else if (target.classList.contains("btn-copy")) {
     const t = templates.find((x) => x.id === id);
     if (!t) return;
-    const branch = t.branches[currentBranchIndex(t)];
     try {
-      await navigator.clipboard.writeText(branch.content);
+      await navigator.clipboard.writeText(resolveBody(t));
       showToast("コピーしました ✓");
     } catch {
       showToast("コピーに失敗しました");
@@ -261,7 +383,6 @@ grid.addEventListener("click", async (e) => {
     const t = templates.find((x) => x.id === id);
     if (t && confirm(`「${t.title}」を削除しますか?`)) {
       templates = templates.filter((x) => x.id !== id);
-      selectedBranch.delete(id);
       saveTemplates();
       render();
     }
@@ -292,17 +413,23 @@ document.getElementById("import-file").addEventListener("change", async (e) => {
     const existingIds = new Set(templates.map((t) => t.id));
     for (const item of imported) {
       if (!item || typeof item.title !== "string") continue;
-      if (item.id && existingIds.has(item.id)) continue;
       const migrated = migrateTemplate(item);
-      if (!migrated.branches.some((b) => b.content.trim())) continue;
+      if (!migrated.body.trim()) continue;
+      const newId = item.id && !existingIds.has(item.id) ? item.id : uid();
       templates.push({
-        id: item.id && !existingIds.has(item.id) ? item.id : uid(),
+        id: newId,
         title: item.title,
         category: typeof item.category === "string" ? item.category : "",
-        branches: migrated.branches.map((b) => ({ id: b.id || uid(), label: b.label || "", content: b.content })),
+        body: migrated.body,
+        slots: migrated.slots.map((s) => ({
+          id: s.id || uid(),
+          label: s.label || "",
+          options: s.options.map((o) => ({ id: o.id || uid(), label: o.label || "", text: o.text })),
+        })),
         createdAt: item.createdAt || Date.now(),
         updatedAt: item.updatedAt || Date.now(),
       });
+      existingIds.add(newId);
     }
     saveTemplates();
     render();
