@@ -1,5 +1,6 @@
 const STORAGE_KEY = "templateCopier.templates.v1";
-const TOKEN_RE = /\{\{slot:([a-zA-Z0-9-]+)\}\}/g;
+const BRACKET_RE = /【([^【】]*)】/g;
+const LEGACY_TOKEN_RE = /\{\{slot:[a-zA-Z0-9-]+\}\}/;
 
 /** @typedef {{id:string,label:string,text:string}} Option */
 /** @typedef {{id:string,label:string,options:Option[]}} Slot */
@@ -26,11 +27,13 @@ const fieldCategory = document.getElementById("field-category");
 const fieldBody = document.getElementById("field-body");
 const btnMakeSlot = document.getElementById("btn-make-slot");
 const slotsEditor = document.getElementById("slots-editor");
+const bodyPreview = document.getElementById("body-preview");
 
 const toast = document.getElementById("toast");
 
-/** In-memory slot list for whatever template is currently open in the dialog. */
-let editingSlots = [];
+/** Maps a slot's id to the exact `【label】` text currently written into fieldBody, so a
+ * label rename or slot removal can find-and-replace the right spot precisely. */
+const slotBrackets = new Map();
 
 function loadTemplates() {
   try {
@@ -42,24 +45,28 @@ function loadTemplates() {
   }
 }
 
-// Older saves used a single `content` string, then a `branches` array of
-// full-body alternatives. Fold either into the current body+slots shape:
-// a `branches` array with more than one entry becomes a single slot that
-// spans the whole body, one option per old branch.
+// Templates have gone through a few body formats over time:
+//   1. a single `content` string
+//   2. a `branches` array of full-body alternatives
+//   3. `body` with `{{slot:ID}}` tokens + a `slots` array (previous version of this feature)
+//   4. `body` with `【label】` placeholders + a `slots` array (current)
+// Fold any older shape into the current one.
 function migrateTemplate(t) {
-  if (typeof t.body === "string" && Array.isArray(t.slots)) return t;
+  if (typeof t.body === "string" && Array.isArray(t.slots)) {
+    return LEGACY_TOKEN_RE.test(t.body) ? convertLegacyTokens(t.body, t.slots, t) : t;
+  }
 
   if (Array.isArray(t.branches)) {
     if (t.branches.length <= 1) {
       return { ...t, body: t.branches[0]?.content ?? "", slots: [] };
     }
-    const slotId = shortId();
+    const label = "パターン";
     return {
       ...t,
-      body: `{{slot:${slotId}}}`,
+      body: `【${label}】`,
       slots: [{
-        id: slotId,
-        label: "パターン",
+        id: uid(),
+        label,
         options: t.branches.map((b) => ({ id: b.id || uid(), label: b.label || "", text: b.content })),
       }],
     };
@@ -68,17 +75,27 @@ function migrateTemplate(t) {
   return { ...t, body: t.content ?? "", slots: [] };
 }
 
+function convertLegacyTokens(body, slots, t) {
+  const used = new Set();
+  let newBody = body;
+  const newSlots = slots.map((s, i) => {
+    const desired = (s.label || "").trim() || `分岐${i + 1}`;
+    let label = desired;
+    let n = 2;
+    while (used.has(label)) { label = `${desired} (${n})`; n++; }
+    used.add(label);
+    newBody = newBody.split(`{{slot:${s.id}}}`).join(`【${label}】`);
+    return { ...s, label };
+  });
+  return { ...t, body: newBody, slots: newSlots };
+}
+
 function saveTemplates() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(templates));
 }
 
 function uid() {
   return crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2);
-}
-
-// Short id for inline body tokens, so `{{slot:xxxxxx}}` stays readable in the textarea.
-function shortId() {
-  return Math.random().toString(36).slice(2, 8);
 }
 
 function showToast(message) {
@@ -121,13 +138,20 @@ function selectedOptionId(templateId, slot) {
   return slot.options.some((o) => o.id === chosen) ? chosen : slot.options[0]?.id;
 }
 
-/** Replace every {{slot:ID}} token in the body with the currently selected option's text. */
+/** Replace every 【label】 placeholder in a body with an option's text, picked per-slot by `pickOption`. */
+function resolveWithSlots(bodyStr, slotsArr, pickOption) {
+  return bodyStr.replace(BRACKET_RE, (match, label) => {
+    const slot = slotsArr.find((s) => (s.label || "").trim() === label.trim());
+    if (!slot || slot.options.length === 0) return match;
+    const opt = pickOption(slot);
+    return opt ? opt.text : match;
+  });
+}
+
 function resolveBody(t) {
-  return t.body.replace(TOKEN_RE, (match, slotId) => {
-    const slot = t.slots.find((s) => s.id === slotId);
-    if (!slot || slot.options.length === 0) return "";
+  return resolveWithSlots(t.body, t.slots, (slot) => {
     const optId = selectedOptionId(t.id, slot);
-    return slot.options.find((o) => o.id === optId)?.text ?? "";
+    return slot.options.find((o) => o.id === optId);
   });
 }
 
@@ -158,7 +182,7 @@ function render() {
       const pills = s.options.map((o, oi) => `
         <button type="button" class="branch-tab ${o.id === activeId ? "active" : ""}" data-id="${t.id}" data-slot="${s.id}" data-option="${o.id}">${escapeHtml(optionLabel(o, oi))}</button>
       `).join("");
-      return `<div class="branch-tabs" title="${escapeAttr(slotLabel(s, si))}">${pills}</div>`;
+      return `<div class="branch-tabs"><span class="branch-tabs-label">${escapeHtml(slotLabel(s, si))}</span>${pills}</div>`;
     }).join("");
 
     return `
@@ -229,9 +253,50 @@ function refreshOptionRemoveButtons(block) {
 }
 
 function setSlotBlocks(slots) {
-  editingSlots = slots;
   slotsEditor.innerHTML = "";
   slots.forEach((s) => slotsEditor.appendChild(renderSlotBlock(s)));
+}
+
+function refreshPreview() {
+  const slots = collectSlotsFromEditor();
+  const resolved = resolveWithSlots(fieldBody.value, slots, (slot) => slot.options[0]).trim();
+  bodyPreview.textContent = resolved || "(本文を入力すると、ここにコピーされる内容が表示されます)";
+}
+
+/** Suggest the next unused "分岐N" label, checking against slots already in the editor. */
+function nextDefaultLabel() {
+  const used = new Set([...slotsEditor.querySelectorAll(".slot-label")].map((el) => el.value.trim()));
+  let n = 1;
+  while (used.has(`分岐${n}`)) n++;
+  return `分岐${n}`;
+}
+
+/** Disambiguate a label against every OTHER slot currently in the editor, so 【label】
+ * placeholders stay uniquely resolvable even if two branches end up named alike. */
+function dedupeLabel(slotId, desired) {
+  const others = [...slotsEditor.querySelectorAll(".slot-block")]
+    .filter((b) => b.dataset.slotId !== slotId)
+    .map((b) => b.querySelector(".slot-label").value.trim());
+  let candidate = desired;
+  let n = 2;
+  while (others.includes(candidate)) {
+    candidate = `${desired} (${n})`;
+    n++;
+  }
+  return candidate;
+}
+
+function syncSlotLabelToBody(block) {
+  const slotId = block.dataset.slotId;
+  const rawLabel = block.querySelector(".slot-label").value.trim();
+  if (!rawLabel) return; // leave the body's existing placeholder alone while the field is empty
+  const finalLabel = dedupeLabel(slotId, rawLabel);
+  const newBracket = `【${finalLabel}】`;
+  const oldBracket = slotBrackets.get(slotId);
+  if (oldBracket && oldBracket !== newBracket) {
+    fieldBody.value = fieldBody.value.replace(oldBracket, newBracket);
+  }
+  slotBrackets.set(slotId, newBracket);
 }
 
 // On touch devices, tapping the "make it a branch" button often collapses the
@@ -260,16 +325,18 @@ btnMakeSlot.addEventListener("click", () => {
   }
   rememberedSelection = null;
   const selectedText = fieldBody.value.slice(start, end);
-  const slotId = shortId();
-  const token = `{{slot:${slotId}}}`;
+  const slotId = uid();
+  const label = nextDefaultLabel();
+  const bracket = `【${label}】`;
 
-  fieldBody.value = fieldBody.value.slice(0, start) + token + fieldBody.value.slice(end);
+  fieldBody.value = fieldBody.value.slice(0, start) + bracket + fieldBody.value.slice(end);
   fieldBody.focus();
-  fieldBody.setSelectionRange(start + token.length, start + token.length);
+  fieldBody.setSelectionRange(start + bracket.length, start + bracket.length);
+  slotBrackets.set(slotId, bracket);
 
   const slot = {
     id: slotId,
-    label: "",
+    label,
     options: [
       { id: uid(), label: "選択肢1", text: selectedText },
       { id: uid(), label: "選択肢2", text: "" },
@@ -277,8 +344,10 @@ btnMakeSlot.addEventListener("click", () => {
   };
   const block = renderSlotBlock(slot);
   slotsEditor.appendChild(block);
-  editingSlots.push(slot);
-  block.querySelector(".slot-label").focus();
+  const labelInput = block.querySelector(".slot-label");
+  labelInput.focus();
+  labelInput.select();
+  refreshPreview();
 });
 
 slotsEditor.addEventListener("click", (e) => {
@@ -291,6 +360,7 @@ slotsEditor.addEventListener("click", (e) => {
     if (block.querySelectorAll(".slot-option-row").length <= 1) return;
     removeOptionBtn.closest(".slot-option-row").remove();
     refreshOptionRemoveButtons(block);
+    refreshPreview();
   } else if (addOptionBtn) {
     const block = addOptionBtn.closest(".slot-block");
     const optionsWrap = block.querySelector(".slot-options");
@@ -302,11 +372,22 @@ slotsEditor.addEventListener("click", (e) => {
     const block = removeSlotBtn.closest(".slot-block");
     const slotId = block.dataset.slotId;
     const firstOptionText = block.querySelector(".option-text").value;
-    const token = `{{slot:${slotId}}}`;
-    fieldBody.value = fieldBody.value.replace(token, firstOptionText);
+    const bracket = slotBrackets.get(slotId) || `【${block.querySelector(".slot-label").value.trim() || "分岐"}】`;
+    fieldBody.value = fieldBody.value.replace(bracket, firstOptionText);
+    slotBrackets.delete(slotId);
     block.remove();
+    refreshPreview();
   }
 });
+
+slotsEditor.addEventListener("input", (e) => {
+  if (e.target.classList.contains("slot-label")) {
+    syncSlotLabelToBody(e.target.closest(".slot-block"));
+  }
+  refreshPreview();
+});
+
+fieldBody.addEventListener("input", refreshPreview);
 
 function openDialogForNew() {
   dialogTitle.textContent = "新規テンプレート";
@@ -315,9 +396,11 @@ function openDialogForNew() {
   fieldCategory.value = "";
   fieldBody.value = "";
   rememberedSelection = null;
+  slotBrackets.clear();
   setSlotBlocks([]);
   dialog.showModal();
   fieldTitle.focus();
+  refreshPreview();
 }
 
 function openDialogForEdit(id) {
@@ -329,21 +412,38 @@ function openDialogForEdit(id) {
   fieldCategory.value = t.category;
   fieldBody.value = t.body;
   rememberedSelection = null;
-  setSlotBlocks(t.slots.map((s) => ({ ...s, options: s.options.map((o) => ({ ...o })) })));
+  slotBrackets.clear();
+  const clonedSlots = t.slots.map((s) => ({ ...s, options: s.options.map((o) => ({ ...o })) }));
+  clonedSlots.forEach((s) => slotBrackets.set(s.id, `【${s.label}】`));
+  setSlotBlocks(clonedSlots);
   dialog.showModal();
   fieldTitle.focus();
+  refreshPreview();
 }
 
 function collectSlotsFromEditor() {
-  return [...slotsEditor.querySelectorAll(".slot-block")].map((block) => ({
-    id: block.dataset.slotId,
-    label: block.querySelector(".slot-label").value.trim(),
-    options: [...block.querySelectorAll(".slot-option-row")].map((row) => ({
-      id: row.dataset.optionId,
-      label: row.querySelector(".option-label").value.trim(),
-      text: row.querySelector(".option-text").value,
-    })),
-  })).filter((s) => s.options.length > 0);
+  const used = new Set();
+  return [...slotsEditor.querySelectorAll(".slot-block")].map((block, i) => {
+    const slotId = block.dataset.slotId;
+    let label = block.querySelector(".slot-label").value.trim();
+    if (!label) {
+      const bracket = slotBrackets.get(slotId);
+      label = bracket ? bracket.slice(1, -1) : `分岐${i + 1}`;
+    }
+    let candidate = label, n = 2;
+    while (used.has(candidate)) { candidate = `${label} (${n})`; n++; }
+    used.add(candidate);
+
+    return {
+      id: slotId,
+      label: candidate,
+      options: [...block.querySelectorAll(".slot-option-row")].map((row) => ({
+        id: row.dataset.optionId,
+        label: row.querySelector(".option-label").value.trim(),
+        text: row.querySelector(".option-text").value,
+      })),
+    };
+  }).filter((s) => s.options.length > 0);
 }
 
 form.addEventListener("submit", () => {

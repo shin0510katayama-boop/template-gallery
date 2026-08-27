@@ -57,9 +57,12 @@
       <label for="field-body">本文</label>
       <textarea id="field-body" rows="10" required placeholder="コピーしたいテキストを入力..."></textarea>
       <button type="button" id="btn-make-slot" class="btn btn-ghost btn-small">選択範囲を分岐にする</button>
-      <p class="field-hint">本文中の文字を選択してからボタンを押すと、その部分だけ複数の言い回しを切り替えられるようになります。1つの本文に何ヶ所でも作れます。</p>
+      <p class="field-hint">本文中の文字を選択してからボタンを押すと、その部分が【 】で囲まれた分岐になります。下の「分岐名」や「選択肢」を書き換えると本文にもすぐ反映されます。1つの本文に何ヶ所でも作れます。</p>
 
       <div id="slots-editor" class="slots-editor"></div>
+
+      <label>プレビュー(コピーされる内容)</label>
+      <div id="body-preview" class="body-preview"></div>
 
       <div class="dialog-actions">
         <button type="button" id="btn-cancel" class="btn btn-ghost">キャンセル</button>

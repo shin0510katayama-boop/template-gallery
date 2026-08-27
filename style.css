@@ -162,8 +162,15 @@ input:focus, textarea:focus, select:focus {
 
 .branch-tabs {
   display: flex;
+  align-items: center;
   gap: 6px;
   flex-wrap: wrap;
+}
+
+.branch-tabs-label {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  flex-shrink: 0;
 }
 
 .branch-tab {
@@ -336,6 +343,18 @@ dialog::backdrop {
   flex-shrink: 0;
 }
 .btn-remove-option:hover { background: var(--bg); }
+
+.body-preview {
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  font-size: 0.85rem;
+  white-space: pre-wrap;
+  color: var(--text);
+  background: var(--bg);
+  max-height: 160px;
+  overflow-y: auto;
+}
 
 .btn-small {
   align-self: flex-start;
