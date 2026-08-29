@@ -7,6 +7,7 @@
   --accent: #4f46e5;
   --accent-hover: #4338ca;
   --danger: #dc2626;
+  --field-accent: #059669;
   --radius: 10px;
   --shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
@@ -20,6 +21,7 @@
     --border: #34343a;
     --accent: #6366f1;
     --accent-hover: #818cf8;
+    --field-accent: #34d399;
     --shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
   }
 }
@@ -343,6 +345,50 @@ dialog::backdrop {
   flex-shrink: 0;
 }
 .btn-remove-option:hover { background: var(--bg); }
+
+.field-block {
+  border-color: var(--field-accent);
+  background: color-mix(in srgb, var(--field-accent) 6%, transparent);
+}
+
+.field-default {
+  font-size: 0.85rem;
+}
+
+.btn-remove-field {
+  font: inherit;
+  font-size: 0.78rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 10px;
+  cursor: pointer;
+  background: var(--surface);
+  color: var(--danger);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.btn-remove-field:hover { background: var(--bg); }
+
+.field-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.field-row-label {
+  font-size: 0.72rem;
+  color: var(--field-accent);
+  flex-shrink: 0;
+}
+
+.field-input {
+  flex: 1;
+  min-width: 120px;
+  font-size: 0.82rem;
+  padding: 5px 8px;
+  border-color: var(--field-accent);
+}
 
 .body-preview {
   border: 1px dashed var(--border);

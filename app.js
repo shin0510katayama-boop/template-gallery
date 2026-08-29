@@ -1,16 +1,21 @@
 const STORAGE_KEY = "templateCopier.templates.v1";
 const BRACKET_RE = /【([^【】]*)】/g;
+const FIELD_RE = /〔([^〔〕]*)〕/g;
 const LEGACY_TOKEN_RE = /\{\{slot:[a-zA-Z0-9-]+\}\}/;
 
 /** @typedef {{id:string,label:string,text:string}} Option */
 /** @typedef {{id:string,label:string,options:Option[]}} Slot */
-/** @typedef {{id:string,title:string,category:string,body:string,slots:Slot[],createdAt:number,updatedAt:number}} Template */
+/** @typedef {{id:string,label:string,default:string}} Field */
+/** @typedef {{id:string,title:string,category:string,body:string,slots:Slot[],fields:Field[],createdAt:number,updatedAt:number}} Template */
 
 /** @type {Template[]} */
 let templates = loadTemplates();
 
 /** Which option is currently selected per template+slot (transient, not persisted). Key: `${templateId}:${slotId}` -> optionId */
 const selections = new Map();
+
+/** What's currently typed into each free-input field (transient, not persisted). Key: `${templateId}:${fieldId}` -> text */
+const fieldValues = new Map();
 
 const grid = document.getElementById("template-grid");
 const emptyState = document.getElementById("empty-state");
@@ -27,6 +32,8 @@ const fieldCategory = document.getElementById("field-category");
 const fieldBody = document.getElementById("field-body");
 const btnMakeSlot = document.getElementById("btn-make-slot");
 const slotsEditor = document.getElementById("slots-editor");
+const btnMakeField = document.getElementById("btn-make-field");
+const fieldsEditor = document.getElementById("fields-editor");
 const bodyPreview = document.getElementById("body-preview");
 
 const toast = document.getElementById("toast");
@@ -34,6 +41,8 @@ const toast = document.getElementById("toast");
 /** Maps a slot's id to the exact `【label】` text currently written into fieldBody, so a
  * label rename or slot removal can find-and-replace the right spot precisely. */
 const slotBrackets = new Map();
+/** Same idea as slotBrackets, but for `〔label〕` free-input field placeholders. */
+const fieldBrackets = new Map();
 
 function loadTemplates() {
   try {
@@ -52,13 +61,16 @@ function loadTemplates() {
 //   4. `body` with `【label】` placeholders + a `slots` array (current)
 // Fold any older shape into the current one.
 function migrateTemplate(t) {
+  const fields = Array.isArray(t.fields) ? t.fields : [];
+
   if (typeof t.body === "string" && Array.isArray(t.slots)) {
-    return LEGACY_TOKEN_RE.test(t.body) ? convertLegacyTokens(t.body, t.slots, t) : t;
+    const withFields = { ...t, fields };
+    return LEGACY_TOKEN_RE.test(t.body) ? convertLegacyTokens(t.body, t.slots, withFields) : withFields;
   }
 
   if (Array.isArray(t.branches)) {
     if (t.branches.length <= 1) {
-      return { ...t, body: t.branches[0]?.content ?? "", slots: [] };
+      return { ...t, body: t.branches[0]?.content ?? "", slots: [], fields };
     }
     const label = "パターン";
     return {
@@ -69,10 +81,11 @@ function migrateTemplate(t) {
         label,
         options: t.branches.map((b) => ({ id: b.id || uid(), label: b.label || "", text: b.content })),
       }],
+      fields,
     };
   }
 
-  return { ...t, body: t.content ?? "", slots: [] };
+  return { ...t, body: t.content ?? "", slots: [], fields };
 }
 
 function convertLegacyTokens(body, slots, t) {
@@ -131,6 +144,7 @@ function escapeAttr(str) { return escapeHtml(str); }
 
 function optionLabel(o, i) { return o.label.trim() || `選択肢${i + 1}`; }
 function slotLabel(s, i) { return s.label.trim() || `分岐${i + 1}`; }
+function fieldLabel(f, i) { return f.label.trim() || `入力欄${i + 1}`; }
 
 function selectedOptionId(templateId, slot) {
   const key = `${templateId}:${slot.id}`;
@@ -148,11 +162,22 @@ function resolveWithSlots(bodyStr, slotsArr, pickOption) {
   });
 }
 
+/** Replace every 〔label〕 placeholder in a body with whatever's currently typed for that field. */
+function resolveWithFields(bodyStr, fieldsArr, templateId) {
+  return bodyStr.replace(FIELD_RE, (match, label) => {
+    const field = fieldsArr.find((f) => (f.label || "").trim() === label.trim());
+    if (!field) return match;
+    const key = `${templateId}:${field.id}`;
+    return fieldValues.has(key) ? fieldValues.get(key) : (field.default || "");
+  });
+}
+
 function resolveBody(t) {
-  return resolveWithSlots(t.body, t.slots, (slot) => {
+  const withSlots = resolveWithSlots(t.body, t.slots, (slot) => {
     const optId = selectedOptionId(t.id, slot);
     return slot.options.find((o) => o.id === optId);
   });
+  return resolveWithFields(withSlots, t.fields, t.id);
 }
 
 function render() {
@@ -165,7 +190,8 @@ function render() {
     if (!query) return true;
     if (t.title.toLowerCase().includes(query)) return true;
     if (resolveBody(t).toLowerCase().includes(query)) return true;
-    return t.slots.some((s) => s.options.some((o) => o.text.toLowerCase().includes(query) || o.label.toLowerCase().includes(query)));
+    if (t.slots.some((s) => s.options.some((o) => o.text.toLowerCase().includes(query) || o.label.toLowerCase().includes(query)))) return true;
+    return t.fields.some((f) => f.label.toLowerCase().includes(query));
   };
 
   const filtered = templates
@@ -185,6 +211,15 @@ function render() {
       return `<div class="branch-tabs"><span class="branch-tabs-label">${escapeHtml(slotLabel(s, si))}</span>${pills}</div>`;
     }).join("");
 
+    const fieldRows = t.fields.map((f, fi) => {
+      const key = `${t.id}:${f.id}`;
+      const val = fieldValues.has(key) ? fieldValues.get(key) : f.default;
+      return `<div class="field-row">
+        <span class="field-row-label">${escapeHtml(fieldLabel(f, fi))}</span>
+        <input type="text" class="field-input" data-id="${t.id}" data-field="${f.id}" value="${escapeAttr(val)}" placeholder="入力してください" />
+      </div>`;
+    }).join("");
+
     return `
       <article class="template-card" data-id="${t.id}">
         <div class="card-top">
@@ -192,6 +227,7 @@ function render() {
         </div>
         ${t.category ? `<span class="card-category">${escapeHtml(t.category)}</span>` : ""}
         ${slotRows}
+        ${fieldRows}
         <p class="card-preview">${escapeHtml(resolveBody(t))}</p>
         <div class="card-actions">
           <button class="btn btn-primary btn-copy" data-id="${t.id}">コピー</button>
@@ -257,9 +293,34 @@ function setSlotBlocks(slots) {
   slots.forEach((s) => slotsEditor.appendChild(renderSlotBlock(s)));
 }
 
+function renderFieldBlock(field) {
+  const block = document.createElement("div");
+  block.className = "slot-block field-block";
+  block.dataset.fieldId = field.id;
+  block.innerHTML = `
+    <div class="slot-block-head">
+      <input type="text" class="field-label" placeholder="入力欄名 (例: お客様名)" value="${escapeAttr(field.label)}" />
+      <button type="button" class="btn-remove-field" title="入力欄を解除して本文に戻す">解除</button>
+    </div>
+    <input type="text" class="field-default" placeholder="デフォルト値 (省略可)" value="${escapeAttr(field.default)}" />
+  `;
+  return block;
+}
+
+function setFieldBlocks(fields) {
+  fieldsEditor.innerHTML = "";
+  fields.forEach((f) => fieldsEditor.appendChild(renderFieldBlock(f)));
+}
+
 function refreshPreview() {
   const slots = collectSlotsFromEditor();
-  const resolved = resolveWithSlots(fieldBody.value, slots, (slot) => slot.options[0]).trim();
+  const fields = collectFieldsFromEditor();
+  const withSlots = resolveWithSlots(fieldBody.value, slots, (slot) => slot.options[0]);
+  const resolved = withSlots.replace(FIELD_RE, (match, label) => {
+    const f = fields.find((x) => (x.label || "").trim() === label.trim());
+    if (!f) return match;
+    return f.default ? f.default : match;
+  }).trim();
   bodyPreview.textContent = resolved || "(本文を入力すると、ここにコピーされる内容が表示されます)";
 }
 
@@ -297,6 +358,40 @@ function syncSlotLabelToBody(block) {
     fieldBody.value = fieldBody.value.replace(oldBracket, newBracket);
   }
   slotBrackets.set(slotId, newBracket);
+}
+
+/** Suggest the next unused "入力欄N" label, checking against fields already in the editor. */
+function nextDefaultFieldLabel() {
+  const used = new Set([...fieldsEditor.querySelectorAll(".field-label")].map((el) => el.value.trim()));
+  let n = 1;
+  while (used.has(`入力欄${n}`)) n++;
+  return `入力欄${n}`;
+}
+
+function dedupeFieldLabel(fieldId, desired) {
+  const others = [...fieldsEditor.querySelectorAll(".field-block")]
+    .filter((b) => b.dataset.fieldId !== fieldId)
+    .map((b) => b.querySelector(".field-label").value.trim());
+  let candidate = desired;
+  let n = 2;
+  while (others.includes(candidate)) {
+    candidate = `${desired} (${n})`;
+    n++;
+  }
+  return candidate;
+}
+
+function syncFieldLabelToBody(block) {
+  const fieldId = block.dataset.fieldId;
+  const rawLabel = block.querySelector(".field-label").value.trim();
+  if (!rawLabel) return;
+  const finalLabel = dedupeFieldLabel(fieldId, rawLabel);
+  const newBracket = `〔${finalLabel}〕`;
+  const oldBracket = fieldBrackets.get(fieldId);
+  if (oldBracket && oldBracket !== newBracket) {
+    fieldBody.value = fieldBody.value.replace(oldBracket, newBracket);
+  }
+  fieldBrackets.set(fieldId, newBracket);
 }
 
 // On touch devices, tapping the "make it a branch" button often collapses the
@@ -387,6 +482,52 @@ slotsEditor.addEventListener("input", (e) => {
   refreshPreview();
 });
 
+btnMakeField.addEventListener("click", () => {
+  let { selectionStart: start, selectionEnd: end } = fieldBody;
+  if (start === end && rememberedSelection) {
+    ({ start, end } = rememberedSelection);
+  }
+  // Unlike a branch, an empty selection is fine here — it just inserts an empty field at the cursor.
+  rememberedSelection = null;
+  const defaultVal = start === end ? "" : fieldBody.value.slice(start, end);
+  const fieldId = uid();
+  const label = nextDefaultFieldLabel();
+  const bracket = `〔${label}〕`;
+
+  fieldBody.value = fieldBody.value.slice(0, start) + bracket + fieldBody.value.slice(end);
+  fieldBody.focus();
+  fieldBody.setSelectionRange(start + bracket.length, start + bracket.length);
+  fieldBrackets.set(fieldId, bracket);
+
+  const field = { id: fieldId, label, default: defaultVal };
+  const block = renderFieldBlock(field);
+  fieldsEditor.appendChild(block);
+  const labelInput = block.querySelector(".field-label");
+  labelInput.focus();
+  labelInput.select();
+  refreshPreview();
+});
+
+fieldsEditor.addEventListener("click", (e) => {
+  const removeFieldBtn = e.target.closest(".btn-remove-field");
+  if (!removeFieldBtn) return;
+  const block = removeFieldBtn.closest(".field-block");
+  const fieldId = block.dataset.fieldId;
+  const defaultVal = block.querySelector(".field-default").value;
+  const bracket = fieldBrackets.get(fieldId) || `〔${block.querySelector(".field-label").value.trim() || "入力欄"}〕`;
+  fieldBody.value = fieldBody.value.replace(bracket, defaultVal);
+  fieldBrackets.delete(fieldId);
+  block.remove();
+  refreshPreview();
+});
+
+fieldsEditor.addEventListener("input", (e) => {
+  if (e.target.classList.contains("field-label")) {
+    syncFieldLabelToBody(e.target.closest(".field-block"));
+  }
+  refreshPreview();
+});
+
 fieldBody.addEventListener("input", refreshPreview);
 
 function openDialogForNew() {
@@ -397,7 +538,9 @@ function openDialogForNew() {
   fieldBody.value = "";
   rememberedSelection = null;
   slotBrackets.clear();
+  fieldBrackets.clear();
   setSlotBlocks([]);
+  setFieldBlocks([]);
   dialog.showModal();
   fieldTitle.focus();
   refreshPreview();
@@ -413,9 +556,13 @@ function openDialogForEdit(id) {
   fieldBody.value = t.body;
   rememberedSelection = null;
   slotBrackets.clear();
+  fieldBrackets.clear();
   const clonedSlots = t.slots.map((s) => ({ ...s, options: s.options.map((o) => ({ ...o })) }));
   clonedSlots.forEach((s) => slotBrackets.set(s.id, `【${s.label}】`));
   setSlotBlocks(clonedSlots);
+  const clonedFields = t.fields.map((f) => ({ ...f }));
+  clonedFields.forEach((f) => fieldBrackets.set(f.id, `〔${f.label}〕`));
+  setFieldBlocks(clonedFields);
   dialog.showModal();
   fieldTitle.focus();
   refreshPreview();
@@ -446,6 +593,27 @@ function collectSlotsFromEditor() {
   }).filter((s) => s.options.length > 0);
 }
 
+function collectFieldsFromEditor() {
+  const used = new Set();
+  return [...fieldsEditor.querySelectorAll(".field-block")].map((block, i) => {
+    const fid = block.dataset.fieldId;
+    let label = block.querySelector(".field-label").value.trim();
+    if (!label) {
+      const bracket = fieldBrackets.get(fid);
+      label = bracket ? bracket.slice(1, -1) : `入力欄${i + 1}`;
+    }
+    let candidate = label, n = 2;
+    while (used.has(candidate)) { candidate = `${label} (${n})`; n++; }
+    used.add(candidate);
+
+    return {
+      id: fid,
+      label: candidate,
+      default: block.querySelector(".field-default").value,
+    };
+  });
+}
+
 form.addEventListener("submit", () => {
   const now = Date.now();
   const id = fieldId.value;
@@ -453,6 +621,7 @@ form.addEventListener("submit", () => {
   const category = fieldCategory.value.trim();
   const body = fieldBody.value;
   const slots = collectSlotsFromEditor();
+  const fields = collectFieldsFromEditor();
 
   if (!title || !body.trim()) return;
 
@@ -463,10 +632,11 @@ form.addEventListener("submit", () => {
       t.category = category;
       t.body = body;
       t.slots = slots;
+      t.fields = fields;
       t.updatedAt = now;
     }
   } else {
-    templates.push({ id: uid(), title, category, body, slots, createdAt: now, updatedAt: now });
+    templates.push({ id: uid(), title, category, body, slots, fields, createdAt: now, updatedAt: now });
   }
 
   saveTemplates();
@@ -509,6 +679,22 @@ grid.addEventListener("click", async (e) => {
   }
 });
 
+// Typing into a card's field input must not trigger a full re-render (that would
+// destroy the input and drop focus/cursor mid-keystroke) — just patch that one
+// card's preview text in place.
+grid.addEventListener("input", (e) => {
+  const target = e.target;
+  if (!(target instanceof HTMLElement) || !target.classList.contains("field-input")) return;
+  const id = target.dataset.id;
+  const fid = target.dataset.field;
+  fieldValues.set(`${id}:${fid}`, target.value);
+  const t = templates.find((x) => x.id === id);
+  if (!t) return;
+  const card = target.closest(".template-card");
+  const preview = card?.querySelector(".card-preview");
+  if (preview) preview.textContent = resolveBody(t);
+});
+
 searchInput.addEventListener("input", render);
 categoryFilter.addEventListener("change", render);
 
@@ -546,6 +732,7 @@ document.getElementById("import-file").addEventListener("change", async (e) => {
           label: s.label || "",
           options: s.options.map((o) => ({ id: o.id || uid(), label: o.label || "", text: o.text })),
         })),
+        fields: migrated.fields.map((f) => ({ id: f.id || uid(), label: f.label || "", default: f.default || "" })),
         createdAt: item.createdAt || Date.now(),
         updatedAt: item.updatedAt || Date.now(),
       });
