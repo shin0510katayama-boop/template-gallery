@@ -34,6 +34,9 @@ const btnMakeSlot = document.getElementById("btn-make-slot");
 const slotsEditor = document.getElementById("slots-editor");
 const btnMakeField = document.getElementById("btn-make-field");
 const fieldsEditor = document.getElementById("fields-editor");
+const insertExistingRow = document.getElementById("insert-existing-row");
+const existingFieldSelect = document.getElementById("existing-field-select");
+const btnInsertExistingField = document.getElementById("btn-insert-existing-field");
 const bodyPreview = document.getElementById("body-preview");
 
 const toast = document.getElementById("toast");
@@ -303,7 +306,6 @@ function renderFieldBlock(field) {
       <button type="button" class="btn-remove-field" title="入力欄を解除して本文に戻す">解除</button>
     </div>
     <input type="text" class="field-default" placeholder="デフォルト値 (省略可)" value="${escapeAttr(field.default)}" />
-    <button type="button" class="btn btn-ghost btn-small btn-insert-field-again">＋ 本文の別の場所にも挿入</button>
   `;
   return block;
 }
@@ -323,6 +325,24 @@ function refreshPreview() {
     return f.default ? f.default : match;
   }).trim();
   bodyPreview.textContent = resolved || "(本文を入力すると、ここにコピーされる内容が表示されます)";
+  refreshFieldSelect();
+}
+
+/** Keep the "既存の入力欄を挿入" dropdown in sync with whatever fields currently exist in the editor. */
+function refreshFieldSelect() {
+  const blocks = [...fieldsEditor.querySelectorAll(".field-block")];
+  insertExistingRow.hidden = blocks.length === 0;
+  if (blocks.length === 0) return;
+
+  const prevValue = existingFieldSelect.value;
+  existingFieldSelect.innerHTML = blocks.map((b) => {
+    const fid = b.dataset.fieldId;
+    const label = b.querySelector(".field-label").value.trim() || "(名前未設定の入力欄)";
+    return `<option value="${escapeAttr(fid)}">${escapeHtml(label)}</option>`;
+  }).join("");
+  if ([...existingFieldSelect.options].some((o) => o.value === prevValue)) {
+    existingFieldSelect.value = prevValue;
+  }
 }
 
 /** Suggest the next unused "分岐N" label, checking against slots already in the editor. */
@@ -511,32 +531,15 @@ btnMakeField.addEventListener("click", () => {
 
 fieldsEditor.addEventListener("click", (e) => {
   const removeFieldBtn = e.target.closest(".btn-remove-field");
-  const insertAgainBtn = e.target.closest(".btn-insert-field-again");
-
-  if (removeFieldBtn) {
-    const block = removeFieldBtn.closest(".field-block");
-    const fieldId = block.dataset.fieldId;
-    const defaultVal = block.querySelector(".field-default").value;
-    const bracket = fieldBrackets.get(fieldId) || `〔${block.querySelector(".field-label").value.trim() || "入力欄"}〕`;
-    fieldBody.value = fieldBody.value.replace(bracket, defaultVal);
-    fieldBrackets.delete(fieldId);
-    block.remove();
-    refreshPreview();
-  } else if (insertAgainBtn) {
-    const block = insertAgainBtn.closest(".field-block");
-    const fieldId = block.dataset.fieldId;
-    const bracket = fieldBrackets.get(fieldId);
-    if (!bracket) return; // label is currently empty — nothing to insert yet
-    let { selectionStart: start, selectionEnd: end } = fieldBody;
-    if (start === end && rememberedSelection) {
-      ({ start, end } = rememberedSelection);
-    }
-    rememberedSelection = null;
-    fieldBody.value = fieldBody.value.slice(0, start) + bracket + fieldBody.value.slice(end);
-    fieldBody.focus();
-    fieldBody.setSelectionRange(start + bracket.length, start + bracket.length);
-    refreshPreview();
-  }
+  if (!removeFieldBtn) return;
+  const block = removeFieldBtn.closest(".field-block");
+  const fieldId = block.dataset.fieldId;
+  const defaultVal = block.querySelector(".field-default").value;
+  const bracket = fieldBrackets.get(fieldId) || `〔${block.querySelector(".field-label").value.trim() || "入力欄"}〕`;
+  fieldBody.value = fieldBody.value.replace(bracket, defaultVal);
+  fieldBrackets.delete(fieldId);
+  block.remove();
+  refreshPreview();
 });
 
 fieldsEditor.addEventListener("input", (e) => {
@@ -547,6 +550,22 @@ fieldsEditor.addEventListener("input", (e) => {
 });
 
 fieldBody.addEventListener("input", refreshPreview);
+
+btnInsertExistingField.addEventListener("click", () => {
+  const fid = existingFieldSelect.value;
+  const bracket = fieldBrackets.get(fid);
+  if (!fid || !bracket) return;
+
+  let { selectionStart: start, selectionEnd: end } = fieldBody;
+  if (start === end && rememberedSelection) {
+    ({ start, end } = rememberedSelection);
+  }
+  rememberedSelection = null;
+  fieldBody.value = fieldBody.value.slice(0, start) + bracket + fieldBody.value.slice(end);
+  fieldBody.focus();
+  fieldBody.setSelectionRange(start + bracket.length, start + bracket.length);
+  refreshPreview();
+});
 
 function openDialogForNew() {
   dialogTitle.textContent = "新規テンプレート";

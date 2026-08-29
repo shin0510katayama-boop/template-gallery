@@ -61,8 +61,15 @@
 
       <div id="slots-editor" class="slots-editor"></div>
 
-      <button type="button" id="btn-make-field" class="btn btn-ghost btn-small">選択範囲を入力欄にする</button>
-      <p class="field-hint">名前や日付など、コピーするたびに書き換えたい部分は〔 〕の入力欄にできます。コピー元のカード上でその場に入力してからコピーできます。すでにある入力欄は、それぞれの枠の「＋ 本文の別の場所にも挿入」から本文の他の場所にも使い回せます(1回入力すれば両方に反映されます)。</p>
+      <div class="body-action-row">
+        <button type="button" id="btn-make-field" class="btn btn-ghost btn-small">選択範囲を入力欄にする</button>
+        <div class="insert-existing-row" id="insert-existing-row" hidden>
+          <span class="insert-existing-arrow">↑ カーソル位置に</span>
+          <select id="existing-field-select"></select>
+          <button type="button" id="btn-insert-existing-field" class="btn btn-ghost btn-small">を挿入</button>
+        </div>
+      </div>
+      <p class="field-hint">名前や日付など、コピーするたびに書き換えたい部分は〔 〕の入力欄にできます。コピー元のカード上でその場に入力してからコピーできます。同じ入力欄を本文の別の場所でも使いたいときは、挿入したい位置にカーソルを置いてから、上のプルダウンで選んで「を挿入」を押してください(1回の入力が両方に反映されます)。</p>
 
       <div id="fields-editor" class="slots-editor"></div>
 

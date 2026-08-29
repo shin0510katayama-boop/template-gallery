@@ -127,6 +127,9 @@ input:focus, textarea:focus, select:focus {
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: 14px;
 }
+.template-grid[hidden] {
+  display: none;
+}
 
 .template-card {
   background: var(--surface);
@@ -256,6 +259,38 @@ dialog::backdrop {
 #field-body {
   resize: vertical;
   font-size: 0.9rem;
+}
+
+.body-action-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.insert-existing-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 4px 8px;
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--field-accent) 8%, transparent);
+}
+.insert-existing-row[hidden] {
+  display: none;
+}
+
+.insert-existing-arrow {
+  font-size: 0.78rem;
+  color: var(--field-accent);
+  white-space: nowrap;
+}
+
+#existing-field-select {
+  font-size: 0.82rem;
+  padding: 5px 8px;
+  border-color: var(--field-accent);
 }
 
 .field-hint {
