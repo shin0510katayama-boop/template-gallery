@@ -195,6 +195,22 @@ input:focus, textarea:focus, select:focus {
   color: #fff;
 }
 
+.btn-clear-inputs {
+  align-self: flex-start;
+  font: inherit;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.btn-clear-inputs:hover {
+  color: var(--field-accent);
+}
+
 .card-preview {
   color: var(--text-muted);
   font-size: 0.875rem;

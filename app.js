@@ -223,6 +223,10 @@ function render() {
       </div>`;
     }).join("");
 
+    const clearInputsLink = t.fields.length > 0
+      ? `<button type="button" class="btn-clear-inputs" data-id="${t.id}">入力をクリア</button>`
+      : "";
+
     return `
       <article class="template-card" data-id="${t.id}">
         <div class="card-top">
@@ -231,6 +235,7 @@ function render() {
         ${t.category ? `<span class="card-category">${escapeHtml(t.category)}</span>` : ""}
         ${slotRows}
         ${fieldRows}
+        ${clearInputsLink}
         <p class="card-preview">${escapeHtml(resolveBody(t))}</p>
         <div class="card-actions">
           <button class="btn btn-primary btn-copy" data-id="${t.id}">コピー</button>
@@ -684,17 +689,6 @@ document.getElementById("btn-cancel").addEventListener("click", () => dialog.clo
 document.getElementById("btn-new").addEventListener("click", openDialogForNew);
 document.getElementById("btn-new-empty").addEventListener("click", openDialogForNew);
 
-document.getElementById("btn-clear-inputs").addEventListener("click", () => {
-  if (fieldValues.size === 0) {
-    showToast("クリアする入力はありません");
-    return;
-  }
-  if (!confirm("すべてのテンプレートの入力欄の内容をクリアしますか?")) return;
-  fieldValues.clear();
-  render();
-  showToast("入力をクリアしました");
-});
-
 grid.addEventListener("click", async (e) => {
   const target = e.target;
   if (!(target instanceof HTMLElement)) return;
@@ -724,6 +718,17 @@ grid.addEventListener("click", async (e) => {
       saveTemplates();
       render();
     }
+  } else if (target.classList.contains("btn-clear-inputs")) {
+    const t = templates.find((x) => x.id === id);
+    if (!t) return;
+    const hasTypedValue = t.fields.some((f) => fieldValues.has(`${id}:${f.id}`));
+    if (!hasTypedValue) {
+      showToast("クリアする入力はありません");
+      return;
+    }
+    t.fields.forEach((f) => fieldValues.delete(`${id}:${f.id}`));
+    render();
+    showToast("入力をクリアしました");
   }
 });
 
