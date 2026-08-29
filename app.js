@@ -303,6 +303,7 @@ function renderFieldBlock(field) {
       <button type="button" class="btn-remove-field" title="入力欄を解除して本文に戻す">解除</button>
     </div>
     <input type="text" class="field-default" placeholder="デフォルト値 (省略可)" value="${escapeAttr(field.default)}" />
+    <button type="button" class="btn btn-ghost btn-small btn-insert-field-again">＋ 本文の別の場所にも挿入</button>
   `;
   return block;
 }
@@ -510,15 +511,32 @@ btnMakeField.addEventListener("click", () => {
 
 fieldsEditor.addEventListener("click", (e) => {
   const removeFieldBtn = e.target.closest(".btn-remove-field");
-  if (!removeFieldBtn) return;
-  const block = removeFieldBtn.closest(".field-block");
-  const fieldId = block.dataset.fieldId;
-  const defaultVal = block.querySelector(".field-default").value;
-  const bracket = fieldBrackets.get(fieldId) || `〔${block.querySelector(".field-label").value.trim() || "入力欄"}〕`;
-  fieldBody.value = fieldBody.value.replace(bracket, defaultVal);
-  fieldBrackets.delete(fieldId);
-  block.remove();
-  refreshPreview();
+  const insertAgainBtn = e.target.closest(".btn-insert-field-again");
+
+  if (removeFieldBtn) {
+    const block = removeFieldBtn.closest(".field-block");
+    const fieldId = block.dataset.fieldId;
+    const defaultVal = block.querySelector(".field-default").value;
+    const bracket = fieldBrackets.get(fieldId) || `〔${block.querySelector(".field-label").value.trim() || "入力欄"}〕`;
+    fieldBody.value = fieldBody.value.replace(bracket, defaultVal);
+    fieldBrackets.delete(fieldId);
+    block.remove();
+    refreshPreview();
+  } else if (insertAgainBtn) {
+    const block = insertAgainBtn.closest(".field-block");
+    const fieldId = block.dataset.fieldId;
+    const bracket = fieldBrackets.get(fieldId);
+    if (!bracket) return; // label is currently empty — nothing to insert yet
+    let { selectionStart: start, selectionEnd: end } = fieldBody;
+    if (start === end && rememberedSelection) {
+      ({ start, end } = rememberedSelection);
+    }
+    rememberedSelection = null;
+    fieldBody.value = fieldBody.value.slice(0, start) + bracket + fieldBody.value.slice(end);
+    fieldBody.focus();
+    fieldBody.setSelectionRange(start + bracket.length, start + bracket.length);
+    refreshPreview();
+  }
 });
 
 fieldsEditor.addEventListener("input", (e) => {
