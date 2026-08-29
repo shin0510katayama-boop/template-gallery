@@ -684,6 +684,17 @@ document.getElementById("btn-cancel").addEventListener("click", () => dialog.clo
 document.getElementById("btn-new").addEventListener("click", openDialogForNew);
 document.getElementById("btn-new-empty").addEventListener("click", openDialogForNew);
 
+document.getElementById("btn-clear-inputs").addEventListener("click", () => {
+  if (fieldValues.size === 0) {
+    showToast("クリアする入力はありません");
+    return;
+  }
+  if (!confirm("すべてのテンプレートの入力欄の内容をクリアしますか?")) return;
+  fieldValues.clear();
+  render();
+  showToast("入力をクリアしました");
+});
+
 grid.addEventListener("click", async (e) => {
   const target = e.target;
   if (!(target instanceof HTMLElement)) return;
