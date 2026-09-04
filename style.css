@@ -52,6 +52,7 @@ body {
   position: sticky;
   top: 0;
   z-index: 10;
+  will-change: transform;
 }
 
 .app-header h1 {
@@ -488,10 +489,13 @@ dialog::backdrop {
   font-size: 0.82rem;
   padding: 5px 8px;
   border-color: var(--field-accent);
-  resize: vertical;
   min-height: 1.9em;
   line-height: 1.4;
   font-family: inherit;
+  /* It grows to fit its content, so it never needs to scroll itself — and a
+     scrollable textarea inside the card list would steal page scrolls. */
+  resize: none;
+  overflow: hidden;
 }
 
 .body-preview {

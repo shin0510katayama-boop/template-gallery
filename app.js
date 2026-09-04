@@ -148,10 +148,14 @@ function escapeHtml(str) {
 }
 function escapeAttr(str) { return escapeHtml(str); }
 
-/** Grow a textarea to fit its content instead of showing a scrollbar. */
+/** Grow a textarea to fit its content instead of showing a scrollbar.
+ * Everything here is border-box, so the height has to include the borders too —
+ * otherwise the content is a couple of pixels too tall for its own box and the
+ * textarea silently becomes a scroll container that swallows page scrolls. */
 function autoGrowTextarea(el) {
   el.style.height = "auto";
-  el.style.height = `${el.scrollHeight}px`;
+  const borders = el.offsetHeight - el.clientHeight;
+  el.style.height = `${el.scrollHeight + borders}px`;
 }
 
 function optionLabel(o, i) { return o.label.trim() || `選択肢${i + 1}`; }
