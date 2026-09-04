@@ -239,6 +239,7 @@ function render() {
             ${t.savedInputs.map((s) => `<option value="${escapeAttr(s.id)}">${escapeHtml(s.name)}</option>`).join("")}
           </select>
           <button type="button" class="btn-load-saved" data-id="${t.id}">呼び出す</button>
+          <button type="button" class="btn-overwrite-saved" data-id="${t.id}">上書き保存</button>
           <button type="button" class="btn-delete-saved" data-id="${t.id}">削除</button>
         ` : ""}
         <button type="button" class="btn-save-inputs" data-id="${t.id}">＋ この内容を保存</button>
@@ -786,6 +787,22 @@ grid.addEventListener("click", async (e) => {
     });
     render();
     showToast(`「${snap.name}」を呼び出しました`);
+  } else if (target.classList.contains("btn-overwrite-saved")) {
+    const t = templates.find((x) => x.id === id);
+    if (!t) return;
+    const select = target.closest(".saved-inputs-row")?.querySelector(".saved-inputs-select");
+    const snap = t.savedInputs.find((s) => s.id === select?.value);
+    if (!snap) return;
+    if (!confirm(`「${snap.name}」を今の入力内容で上書きしますか?`)) return;
+    const values = {};
+    t.fields.forEach((f) => {
+      values[f.id] = fieldValues.has(`${id}:${f.id}`) ? fieldValues.get(`${id}:${f.id}`) : f.default;
+    });
+    snap.values = values;
+    snap.savedAt = Date.now();
+    saveTemplates();
+    render();
+    showToast(`「${snap.name}」を上書き保存しました`);
   } else if (target.classList.contains("btn-delete-saved")) {
     const t = templates.find((x) => x.id === id);
     if (!t) return;

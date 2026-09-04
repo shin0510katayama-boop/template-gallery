@@ -226,6 +226,7 @@ input:focus, textarea:focus, select:focus {
 }
 
 .btn-load-saved,
+.btn-overwrite-saved,
 .btn-delete-saved,
 .btn-save-inputs {
   font: inherit;
@@ -239,6 +240,7 @@ input:focus, textarea:focus, select:focus {
   white-space: nowrap;
 }
 .btn-load-saved:hover,
+.btn-overwrite-saved:hover,
 .btn-delete-saved:hover,
 .btn-save-inputs:hover {
   background: color-mix(in srgb, var(--field-accent) 12%, transparent);
