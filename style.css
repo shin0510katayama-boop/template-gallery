@@ -211,6 +211,43 @@ input:focus, textarea:focus, select:focus {
   color: var(--field-accent);
 }
 
+.saved-inputs-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.saved-inputs-select {
+  font-size: 0.78rem;
+  padding: 4px 6px;
+  border-color: var(--field-accent);
+  max-width: 130px;
+}
+
+.btn-load-saved,
+.btn-delete-saved,
+.btn-save-inputs {
+  font: inherit;
+  font-size: 0.72rem;
+  border: 1px solid var(--field-accent);
+  border-radius: 6px;
+  padding: 3px 8px;
+  cursor: pointer;
+  background: none;
+  color: var(--field-accent);
+  white-space: nowrap;
+}
+.btn-load-saved:hover,
+.btn-delete-saved:hover,
+.btn-save-inputs:hover {
+  background: color-mix(in srgb, var(--field-accent) 12%, transparent);
+}
+.btn-delete-saved {
+  border-color: var(--border);
+  color: var(--danger);
+}
+
 .card-preview {
   color: var(--text-muted);
   font-size: 0.875rem;

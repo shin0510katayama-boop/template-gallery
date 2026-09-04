@@ -6,7 +6,8 @@ const LEGACY_TOKEN_RE = /\{\{slot:[a-zA-Z0-9-]+\}\}/;
 /** @typedef {{id:string,label:string,text:string}} Option */
 /** @typedef {{id:string,label:string,options:Option[]}} Slot */
 /** @typedef {{id:string,label:string,default:string}} Field */
-/** @typedef {{id:string,title:string,category:string,body:string,slots:Slot[],fields:Field[],createdAt:number,updatedAt:number}} Template */
+/** @typedef {{id:string,name:string,values:Object<string,string>,savedAt:number}} SavedInput */
+/** @typedef {{id:string,title:string,category:string,body:string,slots:Slot[],fields:Field[],savedInputs:SavedInput[],createdAt:number,updatedAt:number}} Template */
 
 /** @type {Template[]} */
 let templates = loadTemplates();
@@ -65,15 +66,16 @@ function loadTemplates() {
 // Fold any older shape into the current one.
 function migrateTemplate(t) {
   const fields = Array.isArray(t.fields) ? t.fields : [];
+  const savedInputs = Array.isArray(t.savedInputs) ? t.savedInputs : [];
 
   if (typeof t.body === "string" && Array.isArray(t.slots)) {
-    const withFields = { ...t, fields };
+    const withFields = { ...t, fields, savedInputs };
     return LEGACY_TOKEN_RE.test(t.body) ? convertLegacyTokens(t.body, t.slots, withFields) : withFields;
   }
 
   if (Array.isArray(t.branches)) {
     if (t.branches.length <= 1) {
-      return { ...t, body: t.branches[0]?.content ?? "", slots: [], fields };
+      return { ...t, body: t.branches[0]?.content ?? "", slots: [], fields, savedInputs };
     }
     const label = "パターン";
     return {
@@ -85,10 +87,11 @@ function migrateTemplate(t) {
         options: t.branches.map((b) => ({ id: b.id || uid(), label: b.label || "", text: b.content })),
       }],
       fields,
+      savedInputs,
     };
   }
 
-  return { ...t, body: t.content ?? "", slots: [], fields };
+  return { ...t, body: t.content ?? "", slots: [], fields, savedInputs };
 }
 
 function convertLegacyTokens(body, slots, t) {
@@ -223,9 +226,19 @@ function render() {
       </div>`;
     }).join("");
 
-    const clearInputsLink = t.fields.length > 0
-      ? `<button type="button" class="btn-clear-inputs" data-id="${t.id}">入力をクリア</button>`
-      : "";
+    const savedInputsRow = t.fields.length > 0 ? `
+      <div class="saved-inputs-row">
+        ${t.savedInputs.length > 0 ? `
+          <select class="saved-inputs-select" data-id="${t.id}">
+            ${t.savedInputs.map((s) => `<option value="${escapeAttr(s.id)}">${escapeHtml(s.name)}</option>`).join("")}
+          </select>
+          <button type="button" class="btn-load-saved" data-id="${t.id}">呼び出す</button>
+          <button type="button" class="btn-delete-saved" data-id="${t.id}">削除</button>
+        ` : ""}
+        <button type="button" class="btn-save-inputs" data-id="${t.id}">＋ この内容を保存</button>
+      </div>
+      <button type="button" class="btn-clear-inputs" data-id="${t.id}">入力をクリア</button>
+    ` : "";
 
     return `
       <article class="template-card" data-id="${t.id}">
@@ -235,7 +248,7 @@ function render() {
         ${t.category ? `<span class="card-category">${escapeHtml(t.category)}</span>` : ""}
         ${slotRows}
         ${fieldRows}
-        ${clearInputsLink}
+        ${savedInputsRow}
         <p class="card-preview">${escapeHtml(resolveBody(t))}</p>
         <div class="card-actions">
           <button class="btn btn-primary btn-copy" data-id="${t.id}">コピー</button>
@@ -678,7 +691,7 @@ form.addEventListener("submit", () => {
       t.updatedAt = now;
     }
   } else {
-    templates.push({ id: uid(), title, category, body, slots, fields, createdAt: now, updatedAt: now });
+    templates.push({ id: uid(), title, category, body, slots, fields, savedInputs: [], createdAt: now, updatedAt: now });
   }
 
   saveTemplates();
@@ -729,6 +742,48 @@ grid.addEventListener("click", async (e) => {
     t.fields.forEach((f) => fieldValues.delete(`${id}:${f.id}`));
     render();
     showToast("入力をクリアしました");
+  } else if (target.classList.contains("btn-save-inputs")) {
+    const t = templates.find((x) => x.id === id);
+    if (!t) return;
+    const suggested = t.fields.length > 0
+      ? (fieldValues.get(`${id}:${t.fields[0].id}`) ?? t.fields[0].default ?? "")
+      : "";
+    const name = prompt("この入力内容に名前をつけて保存します", suggested);
+    if (name === null) return;
+    const trimmed = name.trim();
+    if (!trimmed) {
+      showToast("名前を入力してください");
+      return;
+    }
+    const values = {};
+    t.fields.forEach((f) => {
+      values[f.id] = fieldValues.has(`${id}:${f.id}`) ? fieldValues.get(`${id}:${f.id}`) : f.default;
+    });
+    t.savedInputs.push({ id: uid(), name: trimmed, values, savedAt: Date.now() });
+    saveTemplates();
+    render();
+    showToast(`「${trimmed}」として保存しました`);
+  } else if (target.classList.contains("btn-load-saved")) {
+    const t = templates.find((x) => x.id === id);
+    if (!t) return;
+    const select = target.closest(".saved-inputs-row")?.querySelector(".saved-inputs-select");
+    const snap = t.savedInputs.find((s) => s.id === select?.value);
+    if (!snap) return;
+    t.fields.forEach((f) => {
+      if (snap.values[f.id] !== undefined) fieldValues.set(`${id}:${f.id}`, snap.values[f.id]);
+    });
+    render();
+    showToast(`「${snap.name}」を呼び出しました`);
+  } else if (target.classList.contains("btn-delete-saved")) {
+    const t = templates.find((x) => x.id === id);
+    if (!t) return;
+    const select = target.closest(".saved-inputs-row")?.querySelector(".saved-inputs-select");
+    const snap = t.savedInputs.find((s) => s.id === select?.value);
+    if (!snap) return;
+    if (!confirm(`保存した入力「${snap.name}」を削除しますか?`)) return;
+    t.savedInputs = t.savedInputs.filter((s) => s.id !== snap.id);
+    saveTemplates();
+    render();
   }
 });
 
@@ -786,6 +841,12 @@ document.getElementById("import-file").addEventListener("change", async (e) => {
           options: s.options.map((o) => ({ id: o.id || uid(), label: o.label || "", text: o.text })),
         })),
         fields: migrated.fields.map((f) => ({ id: f.id || uid(), label: f.label || "", default: f.default || "" })),
+        savedInputs: migrated.savedInputs.map((s) => ({
+          id: s.id || uid(),
+          name: s.name || "",
+          values: s.values && typeof s.values === "object" ? s.values : {},
+          savedAt: s.savedAt || Date.now(),
+        })),
         createdAt: item.createdAt || Date.now(),
         updatedAt: item.updatedAt || Date.now(),
       });
