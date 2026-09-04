@@ -28,11 +28,16 @@
 
 * { box-sizing: border-box; }
 
+html {
+  touch-action: manipulation;
+}
+
 body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif;
   background: var(--bg);
   color: var(--text);
+  touch-action: manipulation;
 }
 
 .app-header {
