@@ -441,6 +441,10 @@ dialog::backdrop {
 
 .field-default {
   font-size: 0.85rem;
+  resize: vertical;
+  min-height: 2.2em;
+  font-family: inherit;
+  width: 100%;
 }
 
 .btn-remove-field {
@@ -459,7 +463,7 @@ dialog::backdrop {
 
 .field-row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 6px;
   flex-wrap: wrap;
 }
@@ -468,6 +472,7 @@ dialog::backdrop {
   font-size: 0.72rem;
   color: var(--field-accent);
   flex-shrink: 0;
+  padding-top: 6px;
 }
 
 .field-input {
@@ -476,6 +481,10 @@ dialog::backdrop {
   font-size: 0.82rem;
   padding: 5px 8px;
   border-color: var(--field-accent);
+  resize: vertical;
+  min-height: 1.9em;
+  line-height: 1.4;
+  font-family: inherit;
 }
 
 .body-preview {

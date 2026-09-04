@@ -148,6 +148,12 @@ function escapeHtml(str) {
 }
 function escapeAttr(str) { return escapeHtml(str); }
 
+/** Grow a textarea to fit its content instead of showing a scrollbar. */
+function autoGrowTextarea(el) {
+  el.style.height = "auto";
+  el.style.height = `${el.scrollHeight}px`;
+}
+
 function optionLabel(o, i) { return o.label.trim() || `選択肢${i + 1}`; }
 function slotLabel(s, i) { return s.label.trim() || `分岐${i + 1}`; }
 function fieldLabel(f, i) { return f.label.trim() || `入力欄${i + 1}`; }
@@ -222,7 +228,7 @@ function render() {
       const val = fieldValues.has(key) ? fieldValues.get(key) : f.default;
       return `<div class="field-row">
         <span class="field-row-label">${escapeHtml(fieldLabel(f, fi))}</span>
-        <input type="text" class="field-input" data-id="${t.id}" data-field="${f.id}" value="${escapeAttr(val)}" placeholder="入力してください" />
+        <textarea class="field-input" rows="1" data-id="${t.id}" data-field="${f.id}" placeholder="入力してください">${escapeHtml(val)}</textarea>
       </div>`;
     }).join("");
 
@@ -258,6 +264,8 @@ function render() {
       </article>
     `;
   }).join("");
+
+  grid.querySelectorAll(".field-input").forEach(autoGrowTextarea);
 }
 
 // ---- Dialog: body + slot editing ----
@@ -323,7 +331,7 @@ function renderFieldBlock(field) {
       <input type="text" class="field-label" placeholder="入力欄名 (例: お客様名)" value="${escapeAttr(field.label)}" />
       <button type="button" class="btn-remove-field" title="入力欄を解除して本文に戻す">解除</button>
     </div>
-    <input type="text" class="field-default" placeholder="デフォルト値 (省略可)" value="${escapeAttr(field.default)}" />
+    <textarea class="field-default" rows="1" placeholder="デフォルト値 (省略可)">${escapeHtml(field.default)}</textarea>
   `;
   return block;
 }
@@ -331,6 +339,7 @@ function renderFieldBlock(field) {
 function setFieldBlocks(fields) {
   fieldsEditor.innerHTML = "";
   fields.forEach((f) => fieldsEditor.appendChild(renderFieldBlock(f)));
+  fieldsEditor.querySelectorAll(".field-default").forEach(autoGrowTextarea);
 }
 
 function refreshPreview() {
@@ -541,6 +550,7 @@ btnMakeField.addEventListener("click", () => {
   const field = { id: fieldId, label, default: defaultVal };
   const block = renderFieldBlock(field);
   fieldsEditor.appendChild(block);
+  autoGrowTextarea(block.querySelector(".field-default"));
   const labelInput = block.querySelector(".field-label");
   labelInput.focus();
   labelInput.select();
@@ -563,6 +573,8 @@ fieldsEditor.addEventListener("click", (e) => {
 fieldsEditor.addEventListener("input", (e) => {
   if (e.target.classList.contains("field-label")) {
     syncFieldLabelToBody(e.target.closest(".field-block"));
+  } else if (e.target.classList.contains("field-default")) {
+    autoGrowTextarea(e.target);
   }
   refreshPreview();
 });
@@ -793,6 +805,7 @@ grid.addEventListener("click", async (e) => {
 grid.addEventListener("input", (e) => {
   const target = e.target;
   if (!(target instanceof HTMLElement) || !target.classList.contains("field-input")) return;
+  autoGrowTextarea(target);
   const id = target.dataset.id;
   const fid = target.dataset.field;
   fieldValues.set(`${id}:${fid}`, target.value);
