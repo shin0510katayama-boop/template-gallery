@@ -30,6 +30,7 @@
 
 html {
   touch-action: manipulation;
+  overscroll-behavior: none;
 }
 
 body {
@@ -38,6 +39,7 @@ body {
   background: var(--bg);
   color: var(--text);
   touch-action: manipulation;
+  overscroll-behavior: none;
 }
 
 .app-header {
