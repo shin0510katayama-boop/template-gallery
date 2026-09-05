@@ -6,7 +6,7 @@ const LEGACY_TOKEN_RE = /\{\{slot:[a-zA-Z0-9-]+\}\}/;
 /** @typedef {{id:string,label:string,text:string}} Option */
 /** @typedef {{id:string,label:string,options:Option[]}} Slot */
 /** @typedef {{id:string,label:string,default:string}} Field */
-/** @typedef {{id:string,name:string,values:Object<string,string>,savedAt:number}} SavedInput */
+/** @typedef {{id:string,name:string,values:Object<string,string>,selections:Object<string,string>,savedAt:number}} SavedInput */
 /** @typedef {{id:string,title:string,category:string,body:string,slots:Slot[],fields:Field[],savedInputs:SavedInput[],createdAt:number,updatedAt:number}} Template */
 
 /** @type {Template[]} */
@@ -66,7 +66,12 @@ function loadTemplates() {
 // Fold any older shape into the current one.
 function migrateTemplate(t) {
   const fields = Array.isArray(t.fields) ? t.fields : [];
-  const savedInputs = Array.isArray(t.savedInputs) ? t.savedInputs : [];
+  // Older saves recorded only field values in a snapshot; add an empty branch-selections
+  // map to any that predate that.
+  const savedInputs = (Array.isArray(t.savedInputs) ? t.savedInputs : []).map((s) => ({
+    ...s,
+    selections: s.selections && typeof s.selections === "object" ? s.selections : {},
+  }));
 
   if (typeof t.body === "string" && Array.isArray(t.slots)) {
     const withFields = { ...t, fields, savedInputs };
@@ -168,6 +173,19 @@ function selectedOptionId(templateId, slot) {
   return slot.options.some((o) => o.id === chosen) ? chosen : slot.options[0]?.id;
 }
 
+/** Snapshot the currently-typed field values and chosen branch options for a template. */
+function captureCurrentState(t) {
+  const values = {};
+  t.fields.forEach((f) => {
+    values[f.id] = fieldValues.has(`${t.id}:${f.id}`) ? fieldValues.get(`${t.id}:${f.id}`) : f.default;
+  });
+  const branchSelections = {};
+  t.slots.forEach((s) => {
+    branchSelections[s.id] = selectedOptionId(t.id, s);
+  });
+  return { values, selections: branchSelections };
+}
+
 /** Replace every 【label】 placeholder in a body with an option's text, picked per-slot by `pickOption`. */
 function resolveWithSlots(bodyStr, slotsArr, pickOption) {
   return bodyStr.replace(BRACKET_RE, (match, label) => {
@@ -236,7 +254,8 @@ function render() {
       </div>`;
     }).join("");
 
-    const savedInputsRow = t.fields.length > 0 ? `
+    const hasSavableState = t.fields.length > 0 || t.slots.length > 0;
+    const savedInputsRow = hasSavableState ? `
       <div class="saved-inputs-row">
         ${t.savedInputs.length > 0 ? `
           <select class="saved-inputs-select" data-id="${t.id}">
@@ -248,7 +267,7 @@ function render() {
         ` : ""}
         <button type="button" class="btn-save-inputs" data-id="${t.id}">＋ この内容を保存</button>
       </div>
-      <button type="button" class="btn-clear-inputs" data-id="${t.id}">入力をクリア</button>
+      ${t.fields.length > 0 ? `<button type="button" class="btn-clear-inputs" data-id="${t.id}">入力をクリア</button>` : ""}
     ` : "";
 
     return `
@@ -772,11 +791,8 @@ grid.addEventListener("click", async (e) => {
       showToast("名前を入力してください");
       return;
     }
-    const values = {};
-    t.fields.forEach((f) => {
-      values[f.id] = fieldValues.has(`${id}:${f.id}`) ? fieldValues.get(`${id}:${f.id}`) : f.default;
-    });
-    t.savedInputs.push({ id: uid(), name: trimmed, values, savedAt: Date.now() });
+    const { values, selections: branchSelections } = captureCurrentState(t);
+    t.savedInputs.push({ id: uid(), name: trimmed, values, selections: branchSelections, savedAt: Date.now() });
     saveTemplates();
     render();
     showToast(`「${trimmed}」として保存しました`);
@@ -789,6 +805,9 @@ grid.addEventListener("click", async (e) => {
     t.fields.forEach((f) => {
       if (snap.values[f.id] !== undefined) fieldValues.set(`${id}:${f.id}`, snap.values[f.id]);
     });
+    Object.entries(snap.selections || {}).forEach(([slotId, optionId]) => {
+      selections.set(`${id}:${slotId}`, optionId);
+    });
     render();
     showToast(`「${snap.name}」を呼び出しました`);
   } else if (target.classList.contains("btn-overwrite-saved")) {
@@ -798,11 +817,9 @@ grid.addEventListener("click", async (e) => {
     const snap = t.savedInputs.find((s) => s.id === select?.value);
     if (!snap) return;
     if (!confirm(`「${snap.name}」を今の入力内容で上書きしますか?`)) return;
-    const values = {};
-    t.fields.forEach((f) => {
-      values[f.id] = fieldValues.has(`${id}:${f.id}`) ? fieldValues.get(`${id}:${f.id}`) : f.default;
-    });
+    const { values, selections: branchSelections } = captureCurrentState(t);
     snap.values = values;
+    snap.selections = branchSelections;
     snap.savedAt = Date.now();
     saveTemplates();
     render();
@@ -879,6 +896,7 @@ document.getElementById("import-file").addEventListener("change", async (e) => {
           id: s.id || uid(),
           name: s.name || "",
           values: s.values && typeof s.values === "object" ? s.values : {},
+          selections: s.selections && typeof s.selections === "object" ? s.selections : {},
           savedAt: s.savedAt || Date.now(),
         })),
         createdAt: item.createdAt || Date.now(),
