@@ -163,6 +163,12 @@ function autoGrowTextarea(el) {
   el.style.height = `${el.scrollHeight + borders}px`;
 }
 
+function formatSavedAt(ts) {
+  const d = new Date(ts);
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getMonth() + 1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 function optionLabel(o, i) { return o.label.trim() || `選択肢${i + 1}`; }
 function slotLabel(s, i) { return s.label.trim() || `分岐${i + 1}`; }
 function fieldLabel(f, i) { return f.label.trim() || `入力欄${i + 1}`; }
@@ -255,15 +261,23 @@ function render() {
     }).join("");
 
     const hasSavableState = t.fields.length > 0 || t.slots.length > 0;
+    const sortedSavedInputs = [...t.savedInputs].sort((a, b) => b.savedAt - a.savedAt);
     const savedInputsRow = hasSavableState ? `
       <div class="saved-inputs-row">
-        ${t.savedInputs.length > 0 ? `
-          <select class="saved-inputs-select" data-id="${t.id}">
-            ${t.savedInputs.map((s) => `<option value="${escapeAttr(s.id)}">${escapeHtml(s.name)}</option>`).join("")}
-          </select>
-          <button type="button" class="btn-load-saved" data-id="${t.id}">呼び出す</button>
-          <button type="button" class="btn-overwrite-saved" data-id="${t.id}">上書き保存</button>
-          <button type="button" class="btn-delete-saved" data-id="${t.id}">削除</button>
+        ${sortedSavedInputs.length > 0 ? `
+          <ul class="saved-inputs-list">
+            ${sortedSavedInputs.map((s) => `
+              <li class="saved-input-item">
+                <span class="saved-input-name">${escapeHtml(s.name)}</span>
+                <span class="saved-input-date">${formatSavedAt(s.savedAt)}</span>
+                <div class="saved-input-actions">
+                  <button type="button" class="btn-load-saved" data-id="${t.id}" data-saved-id="${escapeAttr(s.id)}">呼び出す</button>
+                  <button type="button" class="btn-overwrite-saved" data-id="${t.id}" data-saved-id="${escapeAttr(s.id)}">上書き</button>
+                  <button type="button" class="btn-delete-saved" data-id="${t.id}" data-saved-id="${escapeAttr(s.id)}">削除</button>
+                </div>
+              </li>
+            `).join("")}
+          </ul>
         ` : ""}
         <button type="button" class="btn-save-inputs" data-id="${t.id}">＋ この内容を保存</button>
       </div>
@@ -799,8 +813,7 @@ grid.addEventListener("click", async (e) => {
   } else if (target.classList.contains("btn-load-saved")) {
     const t = templates.find((x) => x.id === id);
     if (!t) return;
-    const select = target.closest(".saved-inputs-row")?.querySelector(".saved-inputs-select");
-    const snap = t.savedInputs.find((s) => s.id === select?.value);
+    const snap = t.savedInputs.find((s) => s.id === target.dataset.savedId);
     if (!snap) return;
     t.fields.forEach((f) => {
       if (snap.values[f.id] !== undefined) fieldValues.set(`${id}:${f.id}`, snap.values[f.id]);
@@ -813,8 +826,7 @@ grid.addEventListener("click", async (e) => {
   } else if (target.classList.contains("btn-overwrite-saved")) {
     const t = templates.find((x) => x.id === id);
     if (!t) return;
-    const select = target.closest(".saved-inputs-row")?.querySelector(".saved-inputs-select");
-    const snap = t.savedInputs.find((s) => s.id === select?.value);
+    const snap = t.savedInputs.find((s) => s.id === target.dataset.savedId);
     if (!snap) return;
     if (!confirm(`「${snap.name}」を今の入力内容で上書きしますか?`)) return;
     const { values, selections: branchSelections } = captureCurrentState(t);
@@ -827,8 +839,7 @@ grid.addEventListener("click", async (e) => {
   } else if (target.classList.contains("btn-delete-saved")) {
     const t = templates.find((x) => x.id === id);
     if (!t) return;
-    const select = target.closest(".saved-inputs-row")?.querySelector(".saved-inputs-select");
-    const snap = t.savedInputs.find((s) => s.id === select?.value);
+    const snap = t.savedInputs.find((s) => s.id === target.dataset.savedId);
     if (!snap) return;
     if (!confirm(`保存した入力「${snap.name}」を削除しますか?`)) return;
     t.savedInputs = t.savedInputs.filter((s) => s.id !== snap.id);
