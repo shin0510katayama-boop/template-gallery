@@ -1,6 +1,6 @@
 {
-  "name": "テンプレコピー",
-  "short_name": "テンプレコピー",
+  "name": "Template",
+  "short_name": "Template",
   "description": "よく使う文章テンプレートを保存して、ボタン一つでコピーできるアプリ",
   "start_url": "./index.html",
   "display": "standalone",
