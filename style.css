@@ -4,8 +4,9 @@
   --text: #1c1c1e;
   --text-muted: #6b6b70;
   --border: #e2e2e6;
-  --accent: #4f46e5;
-  --accent-hover: #4338ca;
+  --accent: #111111;
+  --accent-hover: #2a2a2e;
+  --accent-text: #ffffff;
   --danger: #dc2626;
   --field-accent: #059669;
   --radius: 10px;
@@ -19,8 +20,9 @@
     --text: #f0f0f2;
     --text-muted: #a0a0a8;
     --border: #34343a;
-    --accent: #6366f1;
-    --accent-hover: #818cf8;
+    --accent: #f0f0f2;
+    --accent-hover: #ffffff;
+    --accent-text: #16161a;
     --field-accent: #34d399;
     --shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
   }
@@ -120,7 +122,7 @@ input:focus, textarea:focus, select:focus {
 .btn-primary {
   background: var(--accent);
   border-color: var(--accent);
-  color: #fff;
+  color: var(--accent-text);
 }
 .btn-primary:hover { background: var(--accent-hover); }
 
@@ -198,7 +200,7 @@ input:focus, textarea:focus, select:focus {
 .branch-tab.active {
   background: var(--accent);
   border-color: var(--accent);
-  color: #fff;
+  color: var(--accent-text);
 }
 
 .btn-clear-inputs {
