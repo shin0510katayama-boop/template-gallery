@@ -281,7 +281,7 @@ function render() {
         ` : ""}
         <button type="button" class="btn-save-inputs" data-id="${t.id}">＋ この内容を保存</button>
       </div>
-      ${t.fields.length > 0 ? `<button type="button" class="btn-clear-inputs" data-id="${t.id}">入力をクリア</button>` : ""}
+      ${hasSavableState ? `<button type="button" class="btn-clear-inputs" data-id="${t.id}">入力をクリア</button>` : ""}
     ` : "";
 
     return `
