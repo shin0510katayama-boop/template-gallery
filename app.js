@@ -942,10 +942,10 @@ if (appHeader) {
 
 const versionEl = document.getElementById("app-version");
 if (versionEl) {
-  const version = window.APP_VERSION || "dev";
+  const version = window.APP_VERSION || "0.0.0";
   const builtAt = window.APP_BUILT_AT ? new Date(window.APP_BUILT_AT) : null;
   const builtStr = builtAt
     ? `${builtAt.getMonth() + 1}/${builtAt.getDate()} ${String(builtAt.getHours()).padStart(2, "0")}:${String(builtAt.getMinutes()).padStart(2, "0")}`
     : "不明";
-  versionEl.textContent = `最終更新: ${builtStr}${version !== "dev" ? ` (${version})` : ""}`;
+  versionEl.textContent = `ver${version} (最終更新: ${builtStr})`;
 }
