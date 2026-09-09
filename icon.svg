@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
-  <!-- Flat Monochrome Squircle Background -->
-  <rect x="60" y="60" width="904" height="904" rx="210" fill="#111111"/>
+  <!-- Full-bleed background: OS applies its own icon mask, no inset/rounding here -->
+  <rect x="0" y="0" width="1024" height="1024" fill="#111111"/>
 
   <!-- Back Sheet -->
   <rect x="352" y="252" width="380" height="380" rx="48" fill="none" stroke="#FFFFFF" stroke-opacity="0.55" stroke-width="10"/>
