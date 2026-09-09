@@ -946,6 +946,6 @@ if (versionEl) {
   const builtAt = window.APP_BUILT_AT ? new Date(window.APP_BUILT_AT) : null;
   const builtStr = builtAt
     ? `${builtAt.getMonth() + 1}/${builtAt.getDate()} ${String(builtAt.getHours()).padStart(2, "0")}:${String(builtAt.getMinutes()).padStart(2, "0")}`
-    : "";
-  versionEl.textContent = `v${version}${builtStr ? ` · ${builtStr}` : ""}`;
+    : "不明";
+  versionEl.textContent = `最終更新: ${builtStr}${version !== "dev" ? ` (${version})` : ""}`;
 }
