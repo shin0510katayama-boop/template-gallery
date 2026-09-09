@@ -2,7 +2,7 @@
 
 よく使う文章(メール定型文、返信テンプレなど)を保存しておいて、ボタン一つでクリップボードにコピーできるシンプルなWebアプリです。
 
-**公開URL:** https://shin0510katayama-boop.github.io/template-gallery/ (GitHub Pages有効化後にアクセス可能)
+**公開URL:** https://template-gallery-tan.vercel.app
 
 ## 使い方
 
