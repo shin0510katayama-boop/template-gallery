@@ -928,3 +928,24 @@ document.getElementById("import-file").addEventListener("change", async (e) => {
 });
 
 render();
+
+// Keep the fixed header from overlapping content: measure its real height
+// (it wraps to two lines on narrow screens) and feed it back as padding.
+const appHeader = document.querySelector(".app-header");
+if (appHeader) {
+  const syncHeaderHeight = () => {
+    document.documentElement.style.setProperty("--header-h", `${appHeader.offsetHeight}px`);
+  };
+  new ResizeObserver(syncHeaderHeight).observe(appHeader);
+  syncHeaderHeight();
+}
+
+const versionEl = document.getElementById("app-version");
+if (versionEl) {
+  const version = window.APP_VERSION || "dev";
+  const builtAt = window.APP_BUILT_AT ? new Date(window.APP_BUILT_AT) : null;
+  const builtStr = builtAt
+    ? `${builtAt.getMonth() + 1}/${builtAt.getDate()} ${String(builtAt.getHours()).padStart(2, "0")}:${String(builtAt.getMinutes()).padStart(2, "0")}`
+    : "";
+  versionEl.textContent = `v${version}${builtStr ? ` · ${builtStr}` : ""}`;
+}

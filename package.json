@@ -1,0 +1,7 @@
+{
+  "name": "template-gallery",
+  "private": true,
+  "scripts": {
+    "build": "node build-version.js"
+  }
+}
