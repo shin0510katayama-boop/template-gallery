@@ -785,11 +785,13 @@ grid.addEventListener("click", async (e) => {
     const t = templates.find((x) => x.id === id);
     if (!t) return;
     const hasTypedValue = t.fields.some((f) => fieldValues.has(`${id}:${f.id}`));
-    if (!hasTypedValue) {
+    const hasChangedBranch = t.slots.some((s) => selections.has(`${id}:${s.id}`));
+    if (!hasTypedValue && !hasChangedBranch) {
       showToast("クリアする入力はありません");
       return;
     }
     t.fields.forEach((f) => fieldValues.delete(`${id}:${f.id}`));
+    t.slots.forEach((s) => selections.delete(`${id}:${s.id}`));
     render();
     showToast("入力をクリアしました");
   } else if (target.classList.contains("btn-save-inputs")) {
