@@ -264,8 +264,9 @@ input:focus, textarea:focus, select:focus {
   flex-wrap: wrap;
 }
 
-.btn-load-saved,
-.btn-overwrite-saved,
+.btn-edit-saved,
+.btn-rename-saved,
+.btn-stop-editing,
 .btn-delete-saved,
 .btn-save-inputs {
   font: inherit;
@@ -279,8 +280,9 @@ input:focus, textarea:focus, select:focus {
   white-space: nowrap;
   align-self: flex-start;
 }
-.btn-load-saved:hover,
-.btn-overwrite-saved:hover,
+.btn-edit-saved:hover,
+.btn-rename-saved:hover,
+.btn-stop-editing:hover,
 .btn-delete-saved:hover,
 .btn-save-inputs:hover {
   background: color-mix(in srgb, var(--field-accent) 12%, transparent);
@@ -288,6 +290,55 @@ input:focus, textarea:focus, select:focus {
 .btn-delete-saved {
   border-color: var(--border);
   color: var(--danger);
+}
+
+/* ---- 保存した入力の編集モード ---- */
+
+.template-card.editing {
+  border-color: var(--field-accent);
+  box-shadow: 0 0 0 1px var(--field-accent), var(--shadow);
+}
+
+.editing-banner {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--field-accent);
+  background: color-mix(in srgb, var(--field-accent) 10%, transparent);
+  border-radius: 6px;
+  padding: 6px 8px;
+}
+
+.editing-banner-hint {
+  font-size: 0.7rem;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+.saved-input-item.editing {
+  border-color: var(--field-accent);
+  background: color-mix(in srgb, var(--field-accent) 8%, transparent);
+}
+
+.saved-input-badge {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--accent-text);
+  background: var(--field-accent);
+  border-radius: 999px;
+  padding: 1px 6px;
+  white-space: nowrap;
+}
+
+.btn-stop-editing {
+  background: var(--field-accent);
+  color: var(--accent-text);
+}
+.btn-stop-editing:hover {
+  background: color-mix(in srgb, var(--field-accent) 85%, #000);
 }
 
 .card-preview {

@@ -18,6 +18,9 @@ const selections = new Map();
 /** What's currently typed into each free-input field (transient, not persisted). Key: `${templateId}:${fieldId}` -> text */
 const fieldValues = new Map();
 
+/** Which saved input a template is currently being edited against (transient). Key: templateId -> savedInputId */
+const editingSavedInput = new Map();
+
 const grid = document.getElementById("template-grid");
 const emptyState = document.getElementById("empty-state");
 const searchInput = document.getElementById("search");
@@ -192,6 +195,78 @@ function captureCurrentState(t) {
   return { values, selections: branchSelections };
 }
 
+/** The saved input this template is currently being edited against, or null. */
+function activeSavedInput(t) {
+  const savedId = editingSavedInput.get(t.id);
+  if (!savedId) return null;
+  const snap = t.savedInputs.find((s) => s.id === savedId);
+  if (!snap) {
+    editingSavedInput.delete(t.id);
+    return null;
+  }
+  return snap;
+}
+
+/** Write the card's current inputs straight into the saved input being edited (no explicit "overwrite" step). */
+function persistActiveSavedInput(t) {
+  const snap = activeSavedInput(t);
+  if (!snap) return null;
+  const { values, selections: branchSelections } = captureCurrentState(t);
+  snap.values = values;
+  snap.selections = branchSelections;
+  snap.savedAt = Date.now();
+  saveTemplates();
+  return snap;
+}
+
+/** Load a saved input's values and branch choices into the card's live inputs. */
+function applySavedInput(t, snap) {
+  t.fields.forEach((f) => {
+    const v = snap.values[f.id];
+    fieldValues.set(`${t.id}:${f.id}`, v !== undefined ? v : (f.default || ""));
+  });
+  t.slots.forEach((s) => {
+    const optId = (snap.selections || {})[s.id];
+    if (optId) selections.set(`${t.id}:${s.id}`, optId);
+  });
+}
+
+// Typing should not hit localStorage on every keystroke, so edits to the active
+// saved input are written back on a short debounce (and flushed on blur/unload).
+let autoSaveTimer = null;
+let autoSavePendingId = null;
+let autoSaveCard = null;
+
+function cancelAutoSave() {
+  if (autoSaveTimer) clearTimeout(autoSaveTimer);
+  autoSaveTimer = null;
+  autoSavePendingId = null;
+  autoSaveCard = null;
+}
+
+function flushAutoSave() {
+  if (!autoSavePendingId) return;
+  const t = templates.find((x) => x.id === autoSavePendingId);
+  const card = autoSaveCard;
+  cancelAutoSave();
+  if (!t) return;
+  const snap = persistActiveSavedInput(t);
+  if (snap && card) {
+    const dateEl = card.querySelector(".saved-input-item.editing .saved-input-date");
+    if (dateEl) dateEl.textContent = formatSavedAt(snap.savedAt);
+  }
+}
+
+function scheduleAutoSave(t, card) {
+  if (autoSaveTimer) clearTimeout(autoSaveTimer);
+  autoSavePendingId = t.id;
+  autoSaveCard = card || null;
+  autoSaveTimer = setTimeout(() => {
+    autoSaveTimer = null;
+    flushAutoSave();
+  }, 400);
+}
+
 /** Replace every 【label】 placeholder in a body with an option's text, picked per-slot by `pickOption`. */
 function resolveWithSlots(bodyStr, slotsArr, pickOption) {
   return bodyStr.replace(BRACKET_RE, (match, label) => {
@@ -261,35 +336,44 @@ function render() {
     }).join("");
 
     const hasSavableState = t.fields.length > 0 || t.slots.length > 0;
+    const editingSnap = activeSavedInput(t);
     const sortedSavedInputs = [...t.savedInputs].sort((a, b) => b.savedAt - a.savedAt);
     const savedInputsRow = hasSavableState ? `
       <div class="saved-inputs-row">
         ${sortedSavedInputs.length > 0 ? `
           <ul class="saved-inputs-list">
-            ${sortedSavedInputs.map((s) => `
-              <li class="saved-input-item">
+            ${sortedSavedInputs.map((s) => {
+              const isEditing = !!editingSnap && editingSnap.id === s.id;
+              return `
+              <li class="saved-input-item${isEditing ? " editing" : ""}">
                 <span class="saved-input-name">${escapeHtml(s.name)}</span>
+                ${isEditing ? `<span class="saved-input-badge">編集中</span>` : ""}
                 <span class="saved-input-date">${formatSavedAt(s.savedAt)}</span>
                 <div class="saved-input-actions">
-                  <button type="button" class="btn-load-saved" data-id="${t.id}" data-saved-id="${escapeAttr(s.id)}">呼び出す</button>
-                  <button type="button" class="btn-overwrite-saved" data-id="${t.id}" data-saved-id="${escapeAttr(s.id)}">上書き</button>
+                  ${isEditing ? `
+                    <button type="button" class="btn-rename-saved" data-id="${t.id}" data-saved-id="${escapeAttr(s.id)}">名前を変更</button>
+                    <button type="button" class="btn-stop-editing" data-id="${t.id}">編集を終える</button>
+                  ` : `
+                    <button type="button" class="btn-edit-saved" data-id="${t.id}" data-saved-id="${escapeAttr(s.id)}">編集</button>
+                  `}
                   <button type="button" class="btn-delete-saved" data-id="${t.id}" data-saved-id="${escapeAttr(s.id)}">削除</button>
                 </div>
               </li>
-            `).join("")}
+            `;}).join("")}
           </ul>
         ` : ""}
-        <button type="button" class="btn-save-inputs" data-id="${t.id}">＋ この内容を保存</button>
+        <button type="button" class="btn-save-inputs" data-id="${t.id}">${editingSnap ? "＋ 別名で保存" : "＋ この内容を保存"}</button>
       </div>
-      ${hasSavableState ? `<button type="button" class="btn-clear-inputs" data-id="${t.id}">入力をクリア</button>` : ""}
+      ${editingSnap ? "" : `<button type="button" class="btn-clear-inputs" data-id="${t.id}">入力をクリア</button>`}
     ` : "";
 
     return `
-      <article class="template-card" data-id="${t.id}">
+      <article class="template-card${editingSnap ? " editing" : ""}" data-id="${t.id}">
         <div class="card-top">
           <h3 class="card-title">${escapeHtml(t.title)}</h3>
         </div>
         ${t.category ? `<span class="card-category">${escapeHtml(t.category)}</span>` : ""}
+        ${editingSnap ? `<div class="editing-banner">「${escapeHtml(editingSnap.name)}」を編集中<span class="editing-banner-hint">変更は自動で保存されます</span></div>` : ""}
         ${slotRows}
         ${fieldRows}
         ${savedInputsRow}
@@ -762,6 +846,11 @@ grid.addEventListener("click", async (e) => {
     const slotId = target.dataset.slot;
     const optionId = target.dataset.option;
     selections.set(`${id}:${slotId}`, optionId);
+    const t = templates.find((x) => x.id === id);
+    if (t) {
+      cancelAutoSave();
+      persistActiveSavedInput(t);
+    }
     render();
   } else if (target.classList.contains("btn-copy")) {
     const t = templates.find((x) => x.id === id);
@@ -808,42 +897,59 @@ grid.addEventListener("click", async (e) => {
       return;
     }
     const { values, selections: branchSelections } = captureCurrentState(t);
-    t.savedInputs.push({ id: uid(), name: trimmed, values, selections: branchSelections, savedAt: Date.now() });
+    const created = { id: uid(), name: trimmed, values, selections: branchSelections, savedAt: Date.now() };
+    t.savedInputs.push(created);
+    cancelAutoSave();
+    editingSavedInput.set(t.id, created.id);
     saveTemplates();
     render();
-    showToast(`「${trimmed}」として保存しました`);
-  } else if (target.classList.contains("btn-load-saved")) {
+    showToast(`「${trimmed}」を編集中です`);
+  } else if (target.classList.contains("btn-edit-saved")) {
     const t = templates.find((x) => x.id === id);
     if (!t) return;
     const snap = t.savedInputs.find((s) => s.id === target.dataset.savedId);
     if (!snap) return;
-    t.fields.forEach((f) => {
-      if (snap.values[f.id] !== undefined) fieldValues.set(`${id}:${f.id}`, snap.values[f.id]);
-    });
-    Object.entries(snap.selections || {}).forEach(([slotId, optionId]) => {
-      selections.set(`${id}:${slotId}`, optionId);
-    });
+    flushAutoSave();
+    persistActiveSavedInput(t);
+    applySavedInput(t, snap);
+    editingSavedInput.set(t.id, snap.id);
     render();
-    showToast(`「${snap.name}」を呼び出しました`);
-  } else if (target.classList.contains("btn-overwrite-saved")) {
+    showToast(`「${snap.name}」を編集中です`);
+  } else if (target.classList.contains("btn-stop-editing")) {
+    const t = templates.find((x) => x.id === id);
+    if (!t) return;
+    flushAutoSave();
+    const snap = activeSavedInput(t);
+    if (snap) persistActiveSavedInput(t);
+    editingSavedInput.delete(t.id);
+    render();
+    showToast(snap ? `「${snap.name}」の編集を終えました` : "編集を終えました");
+  } else if (target.classList.contains("btn-rename-saved")) {
     const t = templates.find((x) => x.id === id);
     if (!t) return;
     const snap = t.savedInputs.find((s) => s.id === target.dataset.savedId);
     if (!snap) return;
-    if (!confirm(`「${snap.name}」を今の入力内容で上書きしますか?`)) return;
-    const { values, selections: branchSelections } = captureCurrentState(t);
-    snap.values = values;
-    snap.selections = branchSelections;
-    snap.savedAt = Date.now();
+    const name = prompt("この保存内容の名前を変更します", snap.name);
+    if (name === null) return;
+    const trimmed = name.trim();
+    if (!trimmed) {
+      showToast("名前を入力してください");
+      return;
+    }
+    snap.name = trimmed;
     saveTemplates();
     render();
-    showToast(`「${snap.name}」を上書き保存しました`);
+    showToast(`名前を「${trimmed}」に変更しました`);
   } else if (target.classList.contains("btn-delete-saved")) {
     const t = templates.find((x) => x.id === id);
     if (!t) return;
     const snap = t.savedInputs.find((s) => s.id === target.dataset.savedId);
     if (!snap) return;
     if (!confirm(`保存した入力「${snap.name}」を削除しますか?`)) return;
+    if (editingSavedInput.get(t.id) === snap.id) {
+      cancelAutoSave();
+      editingSavedInput.delete(t.id);
+    }
     t.savedInputs = t.savedInputs.filter((s) => s.id !== snap.id);
     saveTemplates();
     render();
@@ -865,7 +971,16 @@ grid.addEventListener("input", (e) => {
   const card = target.closest(".template-card");
   const preview = card?.querySelector(".card-preview");
   if (preview) preview.textContent = resolveBody(t);
+  if (activeSavedInput(t)) scheduleAutoSave(t, card);
 });
+
+// Do not leave a half-typed edit unwritten when focus leaves the input or the page goes away.
+grid.addEventListener("focusout", (e) => {
+  const target = e.target;
+  if (target instanceof HTMLElement && target.classList.contains("field-input")) flushAutoSave();
+});
+window.addEventListener("beforeunload", flushAutoSave);
+window.addEventListener("pagehide", flushAutoSave);
 
 searchInput.addEventListener("input", render);
 categoryFilter.addEventListener("change", render);
