@@ -8,7 +8,10 @@
   --accent-hover: #2a2a2e;
   --accent-text: #ffffff;
   --danger: #dc2626;
-  --field-accent: #059669;
+  /* Faint washes of the text color, for tinted blocks and hovers. They follow
+     --text, so the same two values work in both light and dark. */
+  --tint: color-mix(in srgb, var(--text) 5%, transparent);
+  --tint-strong: color-mix(in srgb, var(--text) 9%, transparent);
   --radius: 10px;
   --shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
@@ -23,7 +26,6 @@
     --accent: #f0f0f2;
     --accent-hover: #ffffff;
     --accent-text: #16161a;
-    --field-accent: #34d399;
     --shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
   }
 }
@@ -218,7 +220,7 @@ input:focus, textarea:focus, select:focus {
   text-underline-offset: 2px;
 }
 .btn-clear-inputs:hover {
-  color: var(--field-accent);
+  color: var(--text);
 }
 
 .saved-inputs-row {
@@ -271,12 +273,12 @@ input:focus, textarea:focus, select:focus {
 .btn-save-inputs {
   font: inherit;
   font-size: 0.72rem;
-  border: 1px solid var(--field-accent);
+  border: 1px solid var(--border);
   border-radius: 6px;
   padding: 3px 8px;
   cursor: pointer;
   background: none;
-  color: var(--field-accent);
+  color: var(--text);
   white-space: nowrap;
   align-self: flex-start;
 }
@@ -285,18 +287,17 @@ input:focus, textarea:focus, select:focus {
 .btn-stop-editing:hover,
 .btn-delete-saved:hover,
 .btn-save-inputs:hover {
-  background: color-mix(in srgb, var(--field-accent) 12%, transparent);
+  background: var(--tint);
 }
 .btn-delete-saved {
-  border-color: var(--border);
   color: var(--danger);
 }
 
 /* ---- 保存した入力の編集モード ---- */
 
 .template-card.editing {
-  border-color: var(--field-accent);
-  box-shadow: 0 0 0 1px var(--field-accent), var(--shadow);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent), var(--shadow);
 }
 
 .editing-banner {
@@ -306,8 +307,8 @@ input:focus, textarea:focus, select:focus {
   gap: 2px 8px;
   font-size: 0.78rem;
   font-weight: 700;
-  color: var(--field-accent);
-  background: color-mix(in srgb, var(--field-accent) 10%, transparent);
+  color: var(--text);
+  background: var(--tint-strong);
   border-radius: 6px;
   padding: 6px 8px;
 }
@@ -319,26 +320,27 @@ input:focus, textarea:focus, select:focus {
 }
 
 .saved-input-item.editing {
-  border-color: var(--field-accent);
-  background: color-mix(in srgb, var(--field-accent) 8%, transparent);
+  border-color: var(--accent);
+  background: var(--tint);
 }
 
 .saved-input-badge {
   font-size: 0.65rem;
   font-weight: 700;
   color: var(--accent-text);
-  background: var(--field-accent);
+  background: var(--accent);
   border-radius: 999px;
   padding: 1px 6px;
   white-space: nowrap;
 }
 
 .btn-stop-editing {
-  background: var(--field-accent);
+  background: var(--accent);
+  border-color: var(--accent);
   color: var(--accent-text);
 }
 .btn-stop-editing:hover {
-  background: color-mix(in srgb, var(--field-accent) 85%, #000);
+  background: var(--accent-hover);
 }
 
 .card-preview {
@@ -421,7 +423,7 @@ dialog::backdrop {
   flex-wrap: wrap;
   padding: 4px 8px;
   border-radius: var(--radius);
-  background: color-mix(in srgb, var(--field-accent) 8%, transparent);
+  background: var(--tint);
 }
 .insert-existing-row[hidden] {
   display: none;
@@ -429,14 +431,13 @@ dialog::backdrop {
 
 .insert-existing-arrow {
   font-size: 0.78rem;
-  color: var(--field-accent);
+  color: var(--text-muted);
   white-space: nowrap;
 }
 
 #existing-field-select {
   font-size: 0.82rem;
   padding: 5px 8px;
-  border-color: var(--field-accent);
 }
 
 .field-hint {
@@ -527,9 +528,10 @@ dialog::backdrop {
 }
 .btn-remove-option:hover { background: var(--bg); }
 
+/* Same shape as a branch block. The dashed edge is what tells them apart now
+   that neither one carries a color: a blank to fill in, not a choice to pick. */
 .field-block {
-  border-color: var(--field-accent);
-  background: color-mix(in srgb, var(--field-accent) 6%, transparent);
+  border-style: dashed;
 }
 
 .field-default {
@@ -563,7 +565,7 @@ dialog::backdrop {
 
 .field-row-label {
   font-size: 0.72rem;
-  color: var(--field-accent);
+  color: var(--text-muted);
   flex-shrink: 0;
   padding-top: 6px;
 }
@@ -573,7 +575,6 @@ dialog::backdrop {
   min-width: 120px;
   font-size: 0.82rem;
   padding: 5px 8px;
-  border-color: var(--field-accent);
   min-height: 1.9em;
   line-height: 1.4;
   font-family: inherit;
