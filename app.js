@@ -219,6 +219,12 @@ function persistActiveSavedInput(t) {
   return snap;
 }
 
+/** Drop everything typed / chosen on a card, so it falls back to the template's defaults. */
+function clearLiveInputs(t) {
+  t.fields.forEach((f) => fieldValues.delete(`${t.id}:${f.id}`));
+  t.slots.forEach((s) => selections.delete(`${t.id}:${s.id}`));
+}
+
 /** Load a saved input's values and branch choices into the card's live inputs. */
 function applySavedInput(t, snap) {
   t.fields.forEach((f) => {
@@ -879,8 +885,7 @@ grid.addEventListener("click", async (e) => {
       showToast("クリアする入力はありません");
       return;
     }
-    t.fields.forEach((f) => fieldValues.delete(`${id}:${f.id}`));
-    t.slots.forEach((s) => selections.delete(`${id}:${s.id}`));
+    clearLiveInputs(t);
     render();
     showToast("入力をクリアしました");
   } else if (target.classList.contains("btn-save-inputs")) {
@@ -896,14 +901,20 @@ grid.addEventListener("click", async (e) => {
       showToast("名前を入力してください");
       return;
     }
+    // Write any half-typed edit into the saved input we're about to leave behind.
+    flushAutoSave();
     const { values, selections: branchSelections } = captureCurrentState(t);
     const created = { id: uid(), name: trimmed, values, selections: branchSelections, savedAt: Date.now() };
     t.savedInputs.push(created);
+    // Saving is a "put this away and start the next one" action: the card goes back
+    // to a blank state. Editing mode has to end with it — otherwise the auto-save
+    // would write the now-empty inputs straight back over what was just saved.
     cancelAutoSave();
-    editingSavedInput.set(t.id, created.id);
+    editingSavedInput.delete(t.id);
+    clearLiveInputs(t);
     saveTemplates();
     render();
-    showToast(`「${trimmed}」を編集中です`);
+    showToast(`「${trimmed}」を保存し、入力をクリアしました`);
   } else if (target.classList.contains("btn-edit-saved")) {
     const t = templates.find((x) => x.id === id);
     if (!t) return;
