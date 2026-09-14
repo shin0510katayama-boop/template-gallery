@@ -932,9 +932,13 @@ grid.addEventListener("click", async (e) => {
     flushAutoSave();
     const snap = activeSavedInput(t);
     if (snap) persistActiveSavedInput(t);
+    // Leaving editing mode empties the card too, same as saving: the content is
+    // already written into the saved input, so what's left on screen is just in
+    // the way of the next one.
     editingSavedInput.delete(t.id);
+    clearLiveInputs(t);
     render();
-    showToast(snap ? `「${snap.name}」の編集を終えました` : "編集を終えました");
+    showToast(snap ? `「${snap.name}」の編集を終え、入力をクリアしました` : "編集を終え、入力をクリアしました");
   } else if (target.classList.contains("btn-rename-saved")) {
     const t = templates.find((x) => x.id === id);
     if (!t) return;
