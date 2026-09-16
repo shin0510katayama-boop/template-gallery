@@ -390,7 +390,16 @@ dialog::backdrop {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 20px;
+  /* No bottom padding: the sticky action bar below supplies its own, so it can
+     sit flush against the bottom edge of the scroll area. */
+  padding: 20px 20px 0;
+  max-height: 85vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+#template-form > * {
+  flex-shrink: 0;
 }
 
 #template-form h2 {
@@ -412,8 +421,21 @@ dialog::backdrop {
 .body-action-row {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.body-action-lead {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.body-action-row .btn-small {
+  margin-top: 0;
+  padding: 6px 10px;
+  font-size: 0.82rem;
 }
 
 .insert-existing-row {
@@ -421,9 +443,14 @@ dialog::backdrop {
   align-items: center;
   gap: 6px;
   flex-wrap: wrap;
-  padding: 4px 8px;
+  padding: 5px 8px;
+  margin-top: 6px;
   border-radius: var(--radius);
   background: var(--tint);
+}
+
+.insert-existing-row .btn-small {
+  margin-top: 0;
 }
 .insert-existing-row[hidden] {
   display: none;
@@ -440,18 +467,63 @@ dialog::backdrop {
   padding: 5px 8px;
 }
 
-.field-hint {
+.editor-help {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--tint);
   font-size: 0.78rem;
   color: var(--text-muted);
-  margin: 2px 0 0;
-  line-height: 1.4;
+}
+
+.editor-help summary {
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.editor-help p {
+  margin: 8px 0 0;
+  line-height: 1.5;
+}
+
+.editor-help b { color: var(--text); }
+
+/* ---- 分岐 / 入力欄 の一覧 ---- */
+
+.editor-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 16px;
+}
+.editor-section[hidden] {
+  display: none;
+}
+
+.editor-section-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.editor-count {
+  font-size: 0.72rem;
+  font-weight: 400;
 }
 
 .slots-editor {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  margin-top: 10px;
 }
 
 .slot-block {
@@ -470,15 +542,53 @@ dialog::backdrop {
   align-items: center;
 }
 
-.slot-label {
+/* Position in the body, so a block is easy to match with the spot it controls. */
+.block-order {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--tint-strong);
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+/* Tiny column captions — the inputs' placeholders vanish once they're filled in. */
+.slot-option-caption {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  margin-bottom: -2px;
+}
+
+/* Line the caption up with the text inside the input below it, not the box edge. */
+.slot-option-caption span {
+  padding-left: 9px;
+}
+
+.slot-block:not(.field-block) .slot-option-caption,
+.slot-option-row {
+  display: grid;
+  grid-template-columns: minmax(0, 30%) minmax(0, 1fr) 28px;
+  gap: 6px;
+  align-items: center;
+}
+
+.slot-label,
+.field-label {
   flex: 1;
+  min-width: 0;
   font-size: 0.85rem;
   padding: 7px 10px;
 }
 
 .btn-remove-slot {
   font: inherit;
-  font-size: 0.78rem;
+  font-size: 0.75rem;
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 6px 10px;
@@ -496,19 +606,8 @@ dialog::backdrop {
   gap: 6px;
 }
 
-.slot-option-row {
-  display: flex;
-  gap: 6px;
-}
-
-.option-label {
-  flex: 0 0 30%;
-  font-size: 0.82rem;
-  padding: 6px 8px;
-}
-
+.option-label,
 .option-text {
-  flex: 1;
   font-size: 0.82rem;
   padding: 6px 8px;
   min-width: 0;
@@ -544,7 +643,7 @@ dialog::backdrop {
 
 .btn-remove-field {
   font: inherit;
-  font-size: 0.78rem;
+  font-size: 0.75rem;
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 6px 10px;
@@ -603,11 +702,17 @@ dialog::backdrop {
   margin-top: 4px;
 }
 
+/* Stays reachable however long the branch/field list gets. */
 .dialog-actions {
+  position: sticky;
+  bottom: 0;
   display: flex;
   justify-content: flex-end;
   gap: 8px;
-  margin-top: 16px;
+  margin: 16px -20px 0;
+  padding: 12px 20px;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
 }
 
 .toast {

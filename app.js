@@ -36,8 +36,12 @@ const fieldCategory = document.getElementById("field-category");
 const fieldBody = document.getElementById("field-body");
 const btnMakeSlot = document.getElementById("btn-make-slot");
 const slotsEditor = document.getElementById("slots-editor");
+const slotsSection = document.getElementById("slots-section");
+const slotsCount = document.getElementById("slots-count");
 const btnMakeField = document.getElementById("btn-make-field");
 const fieldsEditor = document.getElementById("fields-editor");
+const fieldsSection = document.getElementById("fields-section");
+const fieldsCount = document.getElementById("fields-count");
 const insertExistingRow = document.getElementById("insert-existing-row");
 const existingFieldSelect = document.getElementById("existing-field-select");
 const btnInsertExistingField = document.getElementById("btn-insert-existing-field");
@@ -175,6 +179,23 @@ function formatSavedAt(ts) {
 function optionLabel(o, i) { return o.label.trim() || `選択肢${i + 1}`; }
 function slotLabel(s, i) { return s.label.trim() || `分岐${i + 1}`; }
 function fieldLabel(f, i) { return f.label.trim() || `入力欄${i + 1}`; }
+
+/** Order slots / fields the way they actually appear in the body text, so the
+ * editor blocks and the card rows read top-to-bottom in the same order as the
+ * sentence they belong to. Anything whose placeholder is no longer in the body
+ * (a stale entry, or a label that is still blank) sinks to the end, keeping its
+ * previous relative position. */
+function sortByBodyOrder(items, body, bracketOf) {
+  const LAST = Number.MAX_SAFE_INTEGER;
+  return items
+    .map((item, i) => {
+      const bracket = bracketOf(item, i);
+      const pos = bracket ? body.indexOf(bracket) : -1;
+      return { item, i, pos: pos === -1 ? LAST : pos };
+    })
+    .sort((a, b) => (a.pos - b.pos) || (a.i - b.i))
+    .map((x) => x.item);
+}
 
 function selectedOptionId(templateId, slot) {
   const key = `${templateId}:${slot.id}`;
@@ -324,19 +345,29 @@ function render() {
   grid.hidden = templates.length === 0;
 
   grid.innerHTML = filtered.map((t) => {
-    const slotRows = t.slots.map((s, si) => {
+    // Resolve the display labels first (they depend on the stored index), then
+    // lay the rows out in the order the placeholders appear in the body.
+    const slotRows = sortByBodyOrder(
+      t.slots.map((s, si) => ({ slot: s, name: slotLabel(s, si) })),
+      t.body,
+      (x) => `【${x.name}】`
+    ).map(({ slot: s, name }) => {
       const activeId = selectedOptionId(t.id, s);
       const pills = s.options.map((o, oi) => `
         <button type="button" class="branch-tab ${o.id === activeId ? "active" : ""}" data-id="${t.id}" data-slot="${s.id}" data-option="${o.id}">${escapeHtml(optionLabel(o, oi))}</button>
       `).join("");
-      return `<div class="branch-tabs"><span class="branch-tabs-label">${escapeHtml(slotLabel(s, si))}</span>${pills}</div>`;
+      return `<div class="branch-tabs"><span class="branch-tabs-label">${escapeHtml(name)}</span>${pills}</div>`;
     }).join("");
 
-    const fieldRows = t.fields.map((f, fi) => {
+    const fieldRows = sortByBodyOrder(
+      t.fields.map((f, fi) => ({ field: f, name: fieldLabel(f, fi) })),
+      t.body,
+      (x) => `〔${x.name}〕`
+    ).map(({ field: f, name }) => {
       const key = `${t.id}:${f.id}`;
       const val = fieldValues.has(key) ? fieldValues.get(key) : f.default;
       return `<div class="field-row">
-        <span class="field-row-label">${escapeHtml(fieldLabel(f, fi))}</span>
+        <span class="field-row-label">${escapeHtml(name)}</span>
         <textarea class="field-input" rows="1" data-id="${t.id}" data-field="${f.id}" placeholder="入力してください">${escapeHtml(val)}</textarea>
       </div>`;
     }).join("");
@@ -418,10 +449,16 @@ function renderSlotBlock(slot) {
   const head = document.createElement("div");
   head.className = "slot-block-head";
   head.innerHTML = `
+    <span class="block-order" title="本文に出てくる順番"></span>
     <input type="text" class="slot-label" placeholder="分岐名 (例: 相手)" value="${escapeAttr(slot.label)}" />
-    <button type="button" class="btn-remove-slot" title="分岐を解除して本文に戻す">分岐を解除</button>
+    <button type="button" class="btn-remove-slot" title="この分岐を解除して本文に戻す">解除</button>
   `;
   block.appendChild(head);
+
+  const caption = document.createElement("div");
+  caption.className = "slot-option-caption";
+  caption.innerHTML = `<span>選択肢の名前</span><span>本文に入るテキスト</span>`;
+  block.appendChild(caption);
 
   const optionsWrap = document.createElement("div");
   optionsWrap.className = "slot-options";
@@ -456,10 +493,12 @@ function renderFieldBlock(field) {
   block.dataset.fieldId = field.id;
   block.innerHTML = `
     <div class="slot-block-head">
+      <span class="block-order" title="本文に出てくる順番"></span>
       <input type="text" class="field-label" placeholder="入力欄名 (例: お客様名)" value="${escapeAttr(field.label)}" />
-      <button type="button" class="btn-remove-field" title="入力欄を解除して本文に戻す">解除</button>
+      <button type="button" class="btn-remove-field" title="この入力欄を解除して本文に戻す">解除</button>
     </div>
-    <textarea class="field-default" rows="1" placeholder="デフォルト値 (省略可)">${escapeHtml(field.default)}</textarea>
+    <div class="slot-option-caption"><span>あらかじめ入れておく値 (省略可)</span></div>
+    <textarea class="field-default" rows="1" placeholder="空のままでもOK">${escapeHtml(field.default)}</textarea>
   `;
   return block;
 }
@@ -468,6 +507,52 @@ function setFieldBlocks(fields) {
   fieldsEditor.innerHTML = "";
   fields.forEach((f) => fieldsEditor.appendChild(renderFieldBlock(f)));
   fieldsEditor.querySelectorAll(".field-default").forEach(autoGrowTextarea);
+}
+
+/** The two editors are lists of independent blocks, so "sorted by body order"
+ * means physically reordering the DOM nodes. Moving a node blurs whatever is
+ * focused inside it, so the caret (and its selection) is put back afterwards —
+ * otherwise renaming a branch while the list shifts would drop you out of the
+ * input mid-word. Nothing moves at all when the order is already right, which
+ * is the common case. */
+function reorderEditorBlocks() {
+  const active = document.activeElement;
+  const isTextEntry = active && ("selectionStart" in active) && active.selectionStart !== null;
+  const caret = isTextEntry ? { start: active.selectionStart, end: active.selectionEnd } : null;
+  let moved = false;
+
+  [
+    { editor: slotsEditor, selector: ".slot-block", idKey: "slotId", brackets: slotBrackets },
+    { editor: fieldsEditor, selector: ".field-block", idKey: "fieldId", brackets: fieldBrackets },
+  ].forEach(({ editor, selector, idKey, brackets }) => {
+    const current = [...editor.querySelectorAll(selector)];
+    const ordered = sortByBodyOrder(current, fieldBody.value, (b) => brackets.get(b.dataset[idKey]));
+    if (ordered.every((b, i) => b === current[i])) return;
+    ordered.forEach((b) => editor.appendChild(b));
+    moved = true;
+  });
+
+  if (!moved || !active || !active.isConnected || document.activeElement === active) return;
+  active.focus({ preventScroll: true });
+  if (caret && active.setSelectionRange) active.setSelectionRange(caret.start, caret.end);
+}
+
+/** Show each editor section only when it has something in it, and number the
+ * blocks 1, 2, 3... in their (body) order so a block is easy to match up with
+ * the spot it controls. */
+function refreshEditorSections() {
+  [
+    { section: slotsSection, editor: slotsEditor, selector: ".slot-block", counter: slotsCount },
+    { section: fieldsSection, editor: fieldsEditor, selector: ".field-block", counter: fieldsCount },
+  ].forEach(({ section, editor, selector, counter }) => {
+    const blocks = [...editor.querySelectorAll(selector)];
+    section.hidden = blocks.length === 0;
+    counter.textContent = blocks.length > 0 ? `${blocks.length}個` : "";
+    blocks.forEach((b, i) => {
+      const badge = b.querySelector(".block-order");
+      if (badge) badge.textContent = String(i + 1);
+    });
+  });
 }
 
 function refreshPreview() {
@@ -480,6 +565,8 @@ function refreshPreview() {
     return f.default ? f.default : match;
   }).trim();
   bodyPreview.textContent = resolved || "(本文を入力すると、ここにコピーされる内容が表示されます)";
+  reorderEditorBlocks();
+  refreshEditorSections();
   refreshFieldSelect();
 }
 
@@ -615,6 +702,8 @@ btnMakeSlot.addEventListener("click", () => {
   };
   const block = renderSlotBlock(slot);
   slotsEditor.appendChild(block);
+  // Slide it into its place in the body's order before the caret moves into it.
+  reorderEditorBlocks();
   const labelInput = block.querySelector(".slot-label");
   labelInput.focus();
   labelInput.select();
@@ -679,6 +768,7 @@ btnMakeField.addEventListener("click", () => {
   const block = renderFieldBlock(field);
   fieldsEditor.appendChild(block);
   autoGrowTextarea(block.querySelector(".field-default"));
+  reorderEditorBlocks();
   const labelInput = block.querySelector(".field-label");
   labelInput.focus();
   labelInput.select();
