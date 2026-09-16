@@ -981,10 +981,9 @@ grid.addEventListener("click", async (e) => {
   } else if (target.classList.contains("btn-save-inputs")) {
     const t = templates.find((x) => x.id === id);
     if (!t) return;
-    const suggested = t.fields.length > 0
-      ? (fieldValues.get(`${id}:${t.fields[0].id}`) ?? t.fields[0].default ?? "")
-      : "";
-    const name = prompt("この入力内容に名前をつけて保存します", suggested);
+    // Starts blank on purpose: pre-filling it with the first field's text meant
+    // dismissing a suggestion that was almost never the name you wanted.
+    const name = prompt("この入力内容に名前をつけて保存します", "");
     if (name === null) return;
     const trimmed = name.trim();
     if (!trimmed) {
