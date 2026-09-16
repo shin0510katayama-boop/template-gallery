@@ -56,22 +56,34 @@
 
       <label for="field-body">本文</label>
       <textarea id="field-body" rows="10" required placeholder="コピーしたいテキストを入力..."></textarea>
-      <button type="button" id="btn-make-slot" class="btn btn-ghost btn-small">選択範囲を分岐にする</button>
-      <p class="field-hint">本文中の文字を選択してからボタンを押すと、その部分が【 】で囲まれた分岐になります。下の「分岐名」や「選択肢」を書き換えると本文にもすぐ反映されます。1つの本文に何ヶ所でも作れます。</p>
-
-      <div id="slots-editor" class="slots-editor"></div>
 
       <div class="body-action-row">
-        <button type="button" id="btn-make-field" class="btn btn-ghost btn-small">選択範囲を入力欄にする</button>
-        <div class="insert-existing-row" id="insert-existing-row" hidden>
-          <span class="insert-existing-arrow">↑ カーソル位置に</span>
-          <select id="existing-field-select"></select>
-          <button type="button" id="btn-insert-existing-field" class="btn btn-ghost btn-small">を挿入</button>
-        </div>
+        <span class="body-action-lead">選択範囲を</span>
+        <button type="button" id="btn-make-slot" class="btn btn-ghost btn-small">【分岐】に</button>
+        <button type="button" id="btn-make-field" class="btn btn-ghost btn-small">〔入力欄〕に</button>
       </div>
-      <p class="field-hint">名前や日付など、コピーするたびに書き換えたい部分は〔 〕の入力欄にできます。コピー元のカード上でその場に入力してからコピーできます。同じ入力欄を本文の別の場所でも使いたいときは、挿入したい位置にカーソルを置いてから、上のプルダウンで選んで「を挿入」を押してください(1回の入力が両方に反映されます)。</p>
+      <div class="insert-existing-row" id="insert-existing-row" hidden>
+        <span class="insert-existing-arrow">カーソル位置に既存の</span>
+        <select id="existing-field-select"></select>
+        <button type="button" id="btn-insert-existing-field" class="btn btn-ghost btn-small">を挿入</button>
+      </div>
 
-      <div id="fields-editor" class="slots-editor"></div>
+      <details class="editor-help">
+        <summary>【分岐】と〔入力欄〕の使い方</summary>
+        <p><b>【分岐】</b>は、その場で選ぶところ。本文中の文字を選択してボタンを押すと【 】に変わります。選択肢は何個でも、分岐は1つの本文に何ヶ所でも作れます。</p>
+        <p><b>〔入力欄〕</b>は、コピーするたびに書き換えるところ。名前や日付など。コピー元のカードでその場に入力できます。同じ入力欄を本文の別の場所にも置きたいときは、置きたい位置にカーソルを合わせてから上のプルダウンで選んで「を挿入」を押すと、1回の入力が両方に反映されます。</p>
+        <p>分岐名・入力欄名を書き換えると、本文の【 】〔 〕にもすぐ反映されます。下の一覧は<b>本文に出てくる順</b>に並びます。</p>
+      </details>
+
+      <section class="editor-section" id="slots-section" hidden>
+        <h3 class="editor-section-title">【 】分岐<span class="editor-count" id="slots-count"></span></h3>
+        <div id="slots-editor" class="slots-editor"></div>
+      </section>
+
+      <section class="editor-section" id="fields-section" hidden>
+        <h3 class="editor-section-title">〔 〕入力欄<span class="editor-count" id="fields-count"></span></h3>
+        <div id="fields-editor" class="slots-editor"></div>
+      </section>
 
       <label>プレビュー(コピーされる内容)</label>
       <div id="body-preview" class="body-preview"></div>
