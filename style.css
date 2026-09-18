@@ -266,6 +266,7 @@ input:focus, textarea:focus, select:focus {
   flex-wrap: wrap;
 }
 
+.btn-copy-saved,
 .btn-edit-saved,
 .btn-edit-saved-info,
 .btn-stop-editing,
@@ -291,6 +292,16 @@ input:focus, textarea:focus, select:focus {
 }
 .btn-delete-saved {
   color: var(--danger);
+}
+
+/* The one-tap action on a saved input, so it reads as the primary thing to press. */
+.btn-copy-saved {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+.btn-copy-saved:hover {
+  background: var(--accent-hover);
 }
 
 /* ---- 一時保存のグループ ---- */
