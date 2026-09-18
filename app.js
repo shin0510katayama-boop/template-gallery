@@ -365,6 +365,22 @@ function resolveWithFields(bodyStr, fieldsArr, templateId) {
   });
 }
 
+/** The text a saved input copies: resolved from its own stored values and branch
+ * choices, not from whatever happens to be typed on the card right now. */
+function resolveSavedBody(t, snap) {
+  const withSlots = resolveWithSlots(t.body, t.slots, (slot) => {
+    const optId = (snap.selections || {})[slot.id];
+    // Same fallback as the card: an option that no longer exists means the first one.
+    return slot.options.find((o) => o.id === optId) || slot.options[0];
+  });
+  return withSlots.replace(FIELD_RE, (match, label) => {
+    const field = t.fields.find((f) => (f.label || "").trim() === label.trim());
+    if (!field) return match;
+    const v = (snap.values || {})[field.id];
+    return v !== undefined ? v : (field.default || "");
+  });
+}
+
 function resolveBody(t) {
   const withSlots = resolveWithSlots(t.body, t.slots, (slot) => {
     const optId = selectedOptionId(t.id, slot);
@@ -434,6 +450,7 @@ function render() {
           ${isEditing ? `<span class="saved-input-badge">編集中</span>` : ""}
           <span class="saved-input-date">${formatSavedAt(s.savedAt)}</span>
           <div class="saved-input-actions">
+            <button type="button" class="btn-copy-saved" data-id="${t.id}" data-saved-id="${escapeAttr(s.id)}">コピー</button>
             ${isEditing
               ? `<button type="button" class="btn-stop-editing" data-id="${t.id}">編集を終える</button>`
               : `<button type="button" class="btn-edit-saved" data-id="${t.id}" data-saved-id="${escapeAttr(s.id)}">編集</button>`}
@@ -1059,6 +1076,19 @@ grid.addEventListener("click", async (e) => {
     if (openSavedGroups.has(key)) openSavedGroups.delete(key);
     else openSavedGroups.add(key);
     render();
+  } else if (target.classList.contains("btn-copy-saved")) {
+    const t = templates.find((x) => x.id === id);
+    if (!t) return;
+    // A half-typed edit belongs in the saved input before we read it back out.
+    flushAutoSave();
+    const snap = t.savedInputs.find((s) => s.id === target.dataset.savedId);
+    if (!snap) return;
+    try {
+      await navigator.clipboard.writeText(resolveSavedBody(t, snap));
+      showToast(`「${snap.name}」をコピーしました ✓`);
+    } catch {
+      showToast("コピーに失敗しました");
+    }
   } else if (target.classList.contains("btn-edit-saved")) {
     const t = templates.find((x) => x.id === id);
     if (!t) return;
