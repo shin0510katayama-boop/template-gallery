@@ -267,7 +267,7 @@ input:focus, textarea:focus, select:focus {
 }
 
 .btn-edit-saved,
-.btn-rename-saved,
+.btn-edit-saved-info,
 .btn-stop-editing,
 .btn-delete-saved,
 .btn-save-inputs {
@@ -283,7 +283,7 @@ input:focus, textarea:focus, select:focus {
   align-self: flex-start;
 }
 .btn-edit-saved:hover,
-.btn-rename-saved:hover,
+.btn-edit-saved-info:hover,
 .btn-stop-editing:hover,
 .btn-delete-saved:hover,
 .btn-save-inputs:hover {
@@ -291,6 +291,57 @@ input:focus, textarea:focus, select:focus {
 }
 .btn-delete-saved {
   color: var(--danger);
+}
+
+/* ---- 一時保存のグループ ---- */
+
+.saved-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.saved-group-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text);
+  text-align: left;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  padding: 5px 6px;
+  cursor: pointer;
+}
+.saved-group-head:hover,
+.saved-group.open > .saved-group-head {
+  background: var(--tint);
+}
+
+.saved-group-caret {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  width: 0.9em;
+}
+
+.saved-group-name {
+  word-break: break-word;
+}
+
+.saved-group-count {
+  font-size: 0.7rem;
+  font-weight: 400;
+  color: var(--text-muted);
+  margin-right: auto;
+}
+
+/* Indent the rows so the heading they belong to stays readable as a heading. */
+.saved-group .saved-inputs-list {
+  padding-left: 14px;
 }
 
 /* ---- 保存した入力の編集モード ---- */
@@ -311,6 +362,15 @@ input:focus, textarea:focus, select:focus {
   background: var(--tint-strong);
   border-radius: 6px;
   padding: 6px 8px;
+}
+
+.editing-banner-group {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0 6px;
 }
 
 .editing-banner-hint {
@@ -386,7 +446,8 @@ dialog::backdrop {
   background: rgba(0, 0, 0, 0.5);
 }
 
-#template-form {
+#template-form,
+#saved-input-form {
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -398,16 +459,19 @@ dialog::backdrop {
   overscroll-behavior: contain;
 }
 
-#template-form > * {
+#template-form > *,
+#saved-input-form > * {
   flex-shrink: 0;
 }
 
-#template-form h2 {
+#template-form h2,
+#saved-input-form h2 {
   margin: 0 0 8px;
   font-size: 1.1rem;
 }
 
-#template-form label {
+#template-form label,
+#saved-input-form label {
   font-size: 0.85rem;
   color: var(--text-muted);
   margin-top: 8px;

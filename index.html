@@ -95,6 +95,25 @@
     </form>
   </dialog>
 
+  <!-- 一時保存の名前・グループ -->
+  <dialog id="saved-input-dialog">
+    <form id="saved-input-form" method="dialog">
+      <h2 id="saved-input-dialog-title">この入力内容を保存</h2>
+
+      <label for="saved-input-name">名前</label>
+      <input type="text" id="saved-input-name" placeholder="例: 山田さん宛" />
+
+      <label for="saved-input-group">グループ</label>
+      <select id="saved-input-group"></select>
+      <input type="text" id="saved-input-new-group" placeholder="新しいグループ名" hidden />
+
+      <div class="dialog-actions">
+        <button type="button" id="btn-saved-input-cancel" class="btn btn-ghost">キャンセル</button>
+        <button type="submit" id="btn-saved-input-submit" class="btn btn-primary">保存</button>
+      </div>
+    </form>
+  </dialog>
+
   <div id="toast" class="toast" hidden></div>
 
   <footer id="app-version" class="app-version"></footer>
