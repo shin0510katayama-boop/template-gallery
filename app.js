@@ -6,7 +6,7 @@ const LEGACY_TOKEN_RE = /\{\{slot:[a-zA-Z0-9-]+\}\}/;
 /** @typedef {{id:string,label:string,text:string}} Option */
 /** @typedef {{id:string,label:string,options:Option[]}} Slot */
 /** @typedef {{id:string,label:string,default:string}} Field */
-/** @typedef {{id:string,name:string,group:string,values:Object<string,string>,selections:Object<string,string>,savedAt:number}} SavedInput */
+/** @typedef {{id:string,name:string,values:Object<string,string>,selections:Object<string,string>,savedAt:number}} SavedInput */
 /** @typedef {{id:string,title:string,category:string,body:string,slots:Slot[],fields:Field[],savedInputs:SavedInput[],createdAt:number,updatedAt:number}} Template */
 
 /** @type {Template[]} */
@@ -21,10 +21,10 @@ const fieldValues = new Map();
 /** Which saved input a template is currently being edited against (transient). Key: templateId -> savedInputId */
 const editingSavedInput = new Map();
 
-/** Which saved-input groups are currently expanded on a card (transient, like the
- * selections above — folding everything shut again on reload is the calmer default).
- * Key: `${templateId}\n${groupName}` */
-const openSavedGroups = new Set();
+/** Which cards are in "選択" mode, and what is ticked in each (transient).
+ * Key: templateId -> Set of savedInputIds. A card is in selection mode exactly
+ * while it has an entry here, so leaving the mode is one delete. */
+const savedSelection = new Map();
 
 const grid = document.getElementById("template-grid");
 const emptyState = document.getElementById("empty-state");
@@ -83,8 +83,6 @@ function migrateTemplate(t) {
   const savedInputs = (Array.isArray(t.savedInputs) ? t.savedInputs : []).map((s) => ({
     ...s,
     selections: s.selections && typeof s.selections === "object" ? s.selections : {},
-    // Saves made before grouping existed land in the unnamed ("未分類") group.
-    group: typeof s.group === "string" ? s.group : "",
   }));
 
   if (typeof t.body === "string" && Array.isArray(t.slots)) {
@@ -265,48 +263,49 @@ function applySavedInput(t, snap) {
   });
 }
 
-// ---- 一時保存のグループ ----
+// ---- 一時保存の選択モード ----
 
-function savedGroupOf(s) {
-  return (s.group || "").trim();
+/** The ticked ids on a card, or null when the card is not in selection mode. */
+function selectionOf(t) {
+  return savedSelection.get(t.id) || null;
 }
 
-function savedGroupKey(templateId, group) {
-  return `${templateId}\n${group}`;
+function enterSelection(t) {
+  savedSelection.set(t.id, new Set());
 }
 
-/** Every named group already in use on this template, for the save dialog's picker. */
-function existingGroupNames(t) {
-  const names = [];
-  t.savedInputs.forEach((s) => {
-    const g = savedGroupOf(s);
-    if (g && !names.includes(g)) names.push(g);
-  });
-  return names.sort((a, b) => a.localeCompare(b, "ja"));
+function exitSelection(t) {
+  savedSelection.delete(t.id);
 }
 
-/** Saved inputs bucketed by group: `[[groupName, items], ...]`, newest first within
- * each group and newest-used group first. The unnamed group always sits last. */
-function groupedSavedInputs(t) {
-  const byGroup = new Map();
-  [...t.savedInputs].sort((a, b) => b.savedAt - a.savedAt).forEach((s) => {
-    const g = savedGroupOf(s);
-    if (!byGroup.has(g)) byGroup.set(g, []);
-    byGroup.get(g).push(s);
-  });
-  const named = [...byGroup.entries()].filter(([g]) => g !== "");
-  named.sort((a, b) => b[1][0].savedAt - a[1][0].savedAt);
-  if (byGroup.has("")) named.push(["", byGroup.get("")]);
-  return named;
+/** Load a saved input into the card and keep writing changes back to it. */
+function startEditingSavedInput(t, snap) {
+  flushAutoSave();
+  persistActiveSavedInput(t);
+  applySavedInput(t, snap);
+  editingSavedInput.set(t.id, snap.id);
+  render();
+  showToast(`「${snap.name}」を編集中です`);
 }
 
-/** Where a fresh save should go by default: the group being edited, else the group
- * the last save went into. The dialog shows it, so it is a suggestion, not a filing rule. */
-function defaultGroupForNewSave(t) {
-  const editing = activeSavedInput(t);
-  if (editing) return savedGroupOf(editing);
-  const newest = [...t.savedInputs].sort((a, b) => b.savedAt - a.savedAt)[0];
-  return newest ? savedGroupOf(newest) : "";
+/** Remove saved inputs, ending editing mode if the one being edited is among them. */
+function deleteSavedInputs(t, snaps) {
+  const ids = new Set(snaps.map((s) => s.id));
+  const editingId = editingSavedInput.get(t.id);
+  if (editingId && ids.has(editingId)) {
+    // Cancel first: a pending auto-save would otherwise write into a deleted snapshot.
+    cancelAutoSave();
+    editingSavedInput.delete(t.id);
+  }
+  t.savedInputs = t.savedInputs.filter((s) => !ids.has(s.id));
+  saveTemplates();
+}
+
+/** Selection only ever means "these saved inputs", so ids that no longer exist go. */
+function selectedSnapshots(t) {
+  const picked = selectionOf(t);
+  if (!picked) return [];
+  return t.savedInputs.filter((s) => picked.has(s.id));
 }
 
 // Typing should not hit localStorage on every keystroke, so edits to the active
@@ -442,53 +441,62 @@ function render() {
     const hasSavableState = t.fields.length > 0 || t.slots.length > 0;
     const editingSnap = activeSavedInput(t);
 
+    const picked = selectionOf(t);
+    const selecting = !!picked;
+    const sortedSavedInputs = [...t.savedInputs].sort((a, b) => b.savedAt - a.savedAt);
+
     const savedItemHtml = (s) => {
       const isEditing = !!editingSnap && editingSnap.id === s.id;
+      const ticked = selecting && picked.has(s.id);
+      // While selecting, the whole row is the tap target — the per-row buttons
+      // would only compete with it.
       return `
-        <li class="saved-input-item${isEditing ? " editing" : ""}">
+        <li class="saved-input-item${isEditing ? " editing" : ""}${selecting ? " selectable" : ""}${ticked ? " picked" : ""}"${selecting ? ` data-id="${t.id}" data-saved-id="${escapeAttr(s.id)}"` : ""}>
+          ${selecting ? `<span class="saved-input-tick" aria-hidden="true">${ticked ? "☑" : "☐"}</span>` : ""}
           <span class="saved-input-name">${escapeHtml(s.name)}</span>
           ${isEditing ? `<span class="saved-input-badge">編集中</span>` : ""}
           <span class="saved-input-date">${formatSavedAt(s.savedAt)}</span>
+          ${selecting ? "" : `
           <div class="saved-input-actions">
             <button type="button" class="btn-copy-saved" data-id="${t.id}" data-saved-id="${escapeAttr(s.id)}">コピー</button>
             ${isEditing
               ? `<button type="button" class="btn-stop-editing" data-id="${t.id}">編集を終える</button>`
               : `<button type="button" class="btn-edit-saved" data-id="${t.id}" data-saved-id="${escapeAttr(s.id)}">編集</button>`}
-            <button type="button" class="btn-edit-saved-info" data-id="${t.id}" data-saved-id="${escapeAttr(s.id)}">名前・グループ</button>
-            <button type="button" class="btn-delete-saved" data-id="${t.id}" data-saved-id="${escapeAttr(s.id)}">削除</button>
-          </div>
+          </div>`}
         </li>
       `;
     };
 
-    const savedGroups = groupedSavedInputs(t);
-    const hasNamedGroup = savedGroups.some(([g]) => g !== "");
-    // A card that has never used a group looks exactly as it did before: a plain
-    // list with nothing to open. Headings show up only once something is grouped.
-    const savedInputsHtml = !hasNamedGroup
-      ? (savedGroups.length > 0 ? `<ul class="saved-inputs-list">${savedGroups[0][1].map(savedItemHtml).join("")}</ul>` : "")
-      : savedGroups.map(([g, items]) => {
-          const open = openSavedGroups.has(savedGroupKey(t.id, g));
-          const holdsEditing = !!editingSnap && savedGroupOf(editingSnap) === g;
-          return `
-            <div class="saved-group${open ? " open" : ""}">
-              <button type="button" class="saved-group-head" data-id="${t.id}" data-group="${escapeAttr(g)}" aria-expanded="${open}">
-                <span class="saved-group-caret" aria-hidden="true">${open ? "▾" : "▸"}</span>
-                <span class="saved-group-name">${g ? escapeHtml(g) : "未分類"}</span>
-                <span class="saved-group-count">${items.length}</span>
-                ${!open && holdsEditing ? `<span class="saved-input-badge">編集中</span>` : ""}
-              </button>
-              ${open ? `<ul class="saved-inputs-list">${items.map(savedItemHtml).join("")}</ul>` : ""}
-            </div>
-          `;
-        }).join("");
+    const savedInputsHtml = sortedSavedInputs.length > 0
+      ? `<ul class="saved-inputs-list">${sortedSavedInputs.map(savedItemHtml).join("")}</ul>`
+      : "";
+
+    const pickedCount = selecting ? selectedSnapshots(t).length : 0;
+    const allPicked = pickedCount > 0 && pickedCount === t.savedInputs.length;
+    const selectionBar = `
+      <div class="saved-selection-bar">
+        <button type="button" class="btn-toggle-all-selected" data-id="${t.id}">${allPicked ? "すべて解除" : "すべて選択"}</button>
+        <span class="saved-selection-count">${pickedCount > 0 ? `${pickedCount}件選択中` : "選んでください"}</span>
+        ${pickedCount === 1 ? `
+          <button type="button" class="btn-edit-selected" data-id="${t.id}">編集</button>
+          <button type="button" class="btn-rename-selected" data-id="${t.id}">名前を変更</button>
+        ` : ""}
+        <button type="button" class="btn-delete-selected" data-id="${t.id}"${pickedCount === 0 ? " disabled" : ""}>削除</button>
+        <button type="button" class="btn-exit-selection" data-id="${t.id}">やめる</button>
+      </div>
+    `;
 
     const savedInputsRow = hasSavableState ? `
       <div class="saved-inputs-row">
         ${savedInputsHtml}
-        <button type="button" class="btn-save-inputs" data-id="${t.id}">${editingSnap ? "＋ 別名で保存" : "＋ この内容を保存"}</button>
+        ${selecting ? selectionBar : `
+          <div class="saved-inputs-actions">
+            <button type="button" class="btn-save-inputs" data-id="${t.id}">${editingSnap ? "＋ 別名で保存" : "＋ この内容を保存"}</button>
+            ${t.savedInputs.length > 0 ? `<button type="button" class="btn-start-selection" data-id="${t.id}">選択</button>` : ""}
+          </div>
+        `}
       </div>
-      ${editingSnap ? "" : `<button type="button" class="btn-clear-inputs" data-id="${t.id}">入力をクリア</button>`}
+      ${editingSnap || selecting ? "" : `<button type="button" class="btn-clear-inputs" data-id="${t.id}">入力をクリア</button>`}
     ` : "";
 
     return `
@@ -497,7 +505,7 @@ function render() {
           <h3 class="card-title">${escapeHtml(t.title)}</h3>
         </div>
         ${t.category ? `<span class="card-category">${escapeHtml(t.category)}</span>` : ""}
-        ${editingSnap ? `<div class="editing-banner">${savedGroupOf(editingSnap) ? `<span class="editing-banner-group">${escapeHtml(savedGroupOf(editingSnap))}</span>` : ""}「${escapeHtml(editingSnap.name)}」を編集中<span class="editing-banner-hint">変更は自動で保存されます</span></div>` : ""}
+        ${editingSnap ? `<div class="editing-banner">「${escapeHtml(editingSnap.name)}」を編集中<span class="editing-banner-hint">変更は自動で保存されます</span></div>` : ""}
         ${slotRows}
         ${fieldRows}
         ${savedInputsRow}
@@ -1022,6 +1030,21 @@ document.getElementById("btn-new-empty").addEventListener("click", openDialogFor
 grid.addEventListener("click", async (e) => {
   const target = e.target;
   if (!(target instanceof HTMLElement)) return;
+
+  // In selection mode the whole row is the tap target, so the tap can land on any
+  // of its spans — resolve it before the data-id lookup the buttons rely on.
+  const row = target.closest(".saved-input-item.selectable");
+  if (row) {
+    const t = templates.find((x) => x.id === row.dataset.id);
+    const picked = t && selectionOf(t);
+    if (!picked) return;
+    const savedId = row.dataset.savedId;
+    if (picked.has(savedId)) picked.delete(savedId);
+    else picked.add(savedId);
+    render();
+    return;
+  }
+
   const id = target.dataset.id;
   if (!id) return;
 
@@ -1070,12 +1093,50 @@ grid.addEventListener("click", async (e) => {
     if (!t) return;
     // The name starts blank on purpose: pre-filling it with the first field's text
     // meant dismissing a suggestion that was almost never the name you wanted.
-    openSavedInputDialog({ mode: "create", templateId: t.id, name: "", group: defaultGroupForNewSave(t) });
-  } else if (target.classList.contains("saved-group-head")) {
-    const key = savedGroupKey(id, target.dataset.group || "");
-    if (openSavedGroups.has(key)) openSavedGroups.delete(key);
-    else openSavedGroups.add(key);
+    openSavedInputDialog({ mode: "create", templateId: t.id, name: "" });
+  } else if (target.classList.contains("btn-start-selection")) {
+    const t = templates.find((x) => x.id === id);
+    if (!t) return;
+    enterSelection(t);
     render();
+  } else if (target.classList.contains("btn-exit-selection")) {
+    const t = templates.find((x) => x.id === id);
+    if (!t) return;
+    exitSelection(t);
+    render();
+  } else if (target.classList.contains("btn-toggle-all-selected")) {
+    const t = templates.find((x) => x.id === id);
+    const picked = t && selectionOf(t);
+    if (!picked) return;
+    if (selectedSnapshots(t).length === t.savedInputs.length) picked.clear();
+    else t.savedInputs.forEach((s) => picked.add(s.id));
+    render();
+  } else if (target.classList.contains("btn-delete-selected")) {
+    const t = templates.find((x) => x.id === id);
+    if (!t) return;
+    const snaps = selectedSnapshots(t);
+    if (snaps.length === 0) return;
+    const what = snaps.length === 1 ? `「${snaps[0].name}」` : `選択した${snaps.length}件`;
+    if (!confirm(`保存した入力${what}を削除しますか?`)) return;
+    deleteSavedInputs(t, snaps);
+    exitSelection(t);
+    render();
+    showToast(`${what}を削除しました`);
+  } else if (target.classList.contains("btn-edit-selected")) {
+    const t = templates.find((x) => x.id === id);
+    if (!t) return;
+    const snaps = selectedSnapshots(t);
+    if (snaps.length !== 1) return;
+    exitSelection(t);
+    startEditingSavedInput(t, snaps[0]);
+  } else if (target.classList.contains("btn-rename-selected")) {
+    const t = templates.find((x) => x.id === id);
+    if (!t) return;
+    const snaps = selectedSnapshots(t);
+    if (snaps.length !== 1) return;
+    exitSelection(t);
+    render();
+    openSavedInputDialog({ mode: "edit", templateId: t.id, savedId: snaps[0].id, name: snaps[0].name });
   } else if (target.classList.contains("btn-copy-saved")) {
     const t = templates.find((x) => x.id === id);
     if (!t) return;
@@ -1094,13 +1155,7 @@ grid.addEventListener("click", async (e) => {
     if (!t) return;
     const snap = t.savedInputs.find((s) => s.id === target.dataset.savedId);
     if (!snap) return;
-    flushAutoSave();
-    persistActiveSavedInput(t);
-    applySavedInput(t, snap);
-    editingSavedInput.set(t.id, snap.id);
-    openSavedGroups.add(savedGroupKey(t.id, savedGroupOf(snap)));
-    render();
-    showToast(`「${snap.name}」を編集中です`);
+    startEditingSavedInput(t, snap);
   } else if (target.classList.contains("btn-stop-editing")) {
     const t = templates.find((x) => x.id === id);
     if (!t) return;
@@ -1114,76 +1169,27 @@ grid.addEventListener("click", async (e) => {
     clearLiveInputs(t);
     render();
     showToast(snap ? `「${snap.name}」の編集を終え、入力をクリアしました` : "編集を終え、入力をクリアしました");
-  } else if (target.classList.contains("btn-edit-saved-info")) {
-    const t = templates.find((x) => x.id === id);
-    if (!t) return;
-    const snap = t.savedInputs.find((s) => s.id === target.dataset.savedId);
-    if (!snap) return;
-    openSavedInputDialog({ mode: "edit", templateId: t.id, savedId: snap.id, name: snap.name, group: savedGroupOf(snap) });
-  } else if (target.classList.contains("btn-delete-saved")) {
-    const t = templates.find((x) => x.id === id);
-    if (!t) return;
-    const snap = t.savedInputs.find((s) => s.id === target.dataset.savedId);
-    if (!snap) return;
-    if (!confirm(`保存した入力「${snap.name}」を削除しますか?`)) return;
-    if (editingSavedInput.get(t.id) === snap.id) {
-      cancelAutoSave();
-      editingSavedInput.delete(t.id);
-    }
-    t.savedInputs = t.savedInputs.filter((s) => s.id !== snap.id);
-    saveTemplates();
-    render();
   }
 });
 
-// ---- 一時保存の名前・グループを決めるダイアログ ----
+// ---- 一時保存の名前を決めるダイアログ ----
 
 const savedInputDialog = document.getElementById("saved-input-dialog");
 const savedInputForm = document.getElementById("saved-input-form");
 const savedInputDialogTitle = document.getElementById("saved-input-dialog-title");
 const savedInputNameField = document.getElementById("saved-input-name");
-const savedInputGroupSelect = document.getElementById("saved-input-group");
-const savedInputNewGroupField = document.getElementById("saved-input-new-group");
 const savedInputSubmit = document.getElementById("btn-saved-input-submit");
-
-// Option values are prefixed so a group can be named anything at all — including
-// whatever sentinel we would otherwise have picked for "new group".
-const NEW_GROUP_OPTION = "new";
-const groupOptionValue = (g) => `g:${g}`;
 
 /** What the dialog is currently filling in: a brand new saved input, or an existing one. */
 let savedInputDialogCtx = null;
-
-function syncNewGroupField() {
-  const isNew = savedInputGroupSelect.value === NEW_GROUP_OPTION;
-  savedInputNewGroupField.hidden = !isNew;
-  if (isNew) savedInputNewGroupField.focus();
-}
-
-function selectedGroupName() {
-  const v = savedInputGroupSelect.value;
-  if (v === NEW_GROUP_OPTION) return savedInputNewGroupField.value.trim();
-  return v.startsWith("g:") ? v.slice(2).trim() : "";
-}
 
 function openSavedInputDialog(ctx) {
   const t = templates.find((x) => x.id === ctx.templateId);
   if (!t) return;
   savedInputDialogCtx = ctx;
-  savedInputDialogTitle.textContent = ctx.mode === "create" ? "この入力内容を保存" : "名前とグループ";
+  savedInputDialogTitle.textContent = ctx.mode === "create" ? "この入力内容を保存" : "名前を変更";
   savedInputSubmit.textContent = ctx.mode === "create" ? "保存" : "変更する";
   savedInputNameField.value = ctx.name || "";
-
-  const names = existingGroupNames(t);
-  const wanted = (ctx.group || "").trim();
-  savedInputGroupSelect.innerHTML = [
-    `<option value="${groupOptionValue("")}">未分類</option>`,
-    ...names.map((g) => `<option value="${escapeAttr(groupOptionValue(g))}">${escapeHtml(g)}</option>`),
-    `<option value="${NEW_GROUP_OPTION}">＋ 新しいグループ…</option>`,
-  ].join("");
-  savedInputGroupSelect.value = groupOptionValue(names.includes(wanted) ? wanted : "");
-  savedInputNewGroupField.value = "";
-  savedInputNewGroupField.hidden = true;
 
   if (typeof savedInputDialog.showModal === "function") savedInputDialog.showModal();
   savedInputNameField.focus();
@@ -1209,20 +1215,11 @@ function commitSavedInputDialog() {
     savedInputNameField.focus();
     return;
   }
-  if (savedInputGroupSelect.value === NEW_GROUP_OPTION && !selectedGroupName()) {
-    showToast("グループ名を入力してください");
-    savedInputNewGroupField.focus();
-    return;
-  }
-  const group = selectedGroupName();
-  // The group you just filed something into is the one you want to see.
-  openSavedGroups.add(savedGroupKey(t.id, group));
-
   if (ctx.mode === "create") {
     // Write any half-typed edit into the saved input we are about to leave behind.
     flushAutoSave();
     const { values, selections: branchSelections } = captureCurrentState(t);
-    t.savedInputs.push({ id: uid(), name, group, values, selections: branchSelections, savedAt: Date.now() });
+    t.savedInputs.push({ id: uid(), name, values, selections: branchSelections, savedAt: Date.now() });
     // Saving is a "put this away and start the next one" action: the card goes back
     // to a blank state. Editing mode has to end with it — otherwise the auto-save
     // would write the now-empty inputs straight back over what was just saved.
@@ -1241,18 +1238,13 @@ function commitSavedInputDialog() {
     closeSavedInputDialog();
     return;
   }
-  const moved = group !== savedGroupOf(snap);
   snap.name = name;
-  snap.group = group;
   saveTemplates();
   closeSavedInputDialog();
   render();
-  showToast(moved
-    ? `「${name}」を${group ? `「${group}」` : "未分類"}に移動しました`
-    : `名前を「${name}」に変更しました`);
+  showToast(`名前を「${name}」に変更しました`);
 }
 
-savedInputGroupSelect.addEventListener("change", syncNewGroupField);
 savedInputForm.addEventListener("submit", (e) => {
   // Validation lives in commit so a missing name can keep the dialog open.
   e.preventDefault();
@@ -1328,7 +1320,6 @@ document.getElementById("import-file").addEventListener("change", async (e) => {
         savedInputs: migrated.savedInputs.map((s) => ({
           id: s.id || uid(),
           name: s.name || "",
-          group: typeof s.group === "string" ? s.group : "",
           values: s.values && typeof s.values === "object" ? s.values : {},
           selections: s.selections && typeof s.selections === "object" ? s.selections : {},
           savedAt: s.savedAt || Date.now(),

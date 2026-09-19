@@ -268,10 +268,14 @@ input:focus, textarea:focus, select:focus {
 
 .btn-copy-saved,
 .btn-edit-saved,
-.btn-edit-saved-info,
 .btn-stop-editing,
-.btn-delete-saved,
-.btn-save-inputs {
+.btn-save-inputs,
+.btn-start-selection,
+.btn-toggle-all-selected,
+.btn-edit-selected,
+.btn-rename-selected,
+.btn-delete-selected,
+.btn-exit-selection {
   font: inherit;
   font-size: 0.72rem;
   border: 1px solid var(--border);
@@ -284,14 +288,71 @@ input:focus, textarea:focus, select:focus {
   align-self: flex-start;
 }
 .btn-edit-saved:hover,
-.btn-edit-saved-info:hover,
 .btn-stop-editing:hover,
-.btn-delete-saved:hover,
-.btn-save-inputs:hover {
+.btn-save-inputs:hover,
+.btn-start-selection:hover,
+.btn-toggle-all-selected:hover,
+.btn-edit-selected:hover,
+.btn-rename-selected:hover,
+.btn-exit-selection:hover {
   background: var(--tint);
 }
-.btn-delete-saved {
+.btn-delete-selected {
   color: var(--danger);
+}
+.btn-delete-selected:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+}
+.btn-delete-selected:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* ---- 一時保存の選択モード ---- */
+
+.saved-inputs-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.saved-selection-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--tint);
+}
+
+.saved-selection-count {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin-right: auto;
+}
+
+/* The row itself is the checkbox while selecting, so it has to look pressable. */
+.saved-input-item.selectable {
+  cursor: pointer;
+  user-select: none;
+}
+.saved-input-item.selectable:hover {
+  background: var(--tint);
+}
+.saved-input-item.picked {
+  border-color: var(--accent);
+  background: var(--tint-strong);
+}
+
+.saved-input-tick {
+  font-size: 0.95rem;
+  line-height: 1;
+  color: var(--text-muted);
+}
+.saved-input-item.picked .saved-input-tick {
+  color: var(--text);
 }
 
 /* The one-tap action on a saved input, so it reads as the primary thing to press. */
@@ -302,57 +363,6 @@ input:focus, textarea:focus, select:focus {
 }
 .btn-copy-saved:hover {
   background: var(--accent-hover);
-}
-
-/* ---- 一時保存のグループ ---- */
-
-.saved-group {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.saved-group-head {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  width: 100%;
-  font: inherit;
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: var(--text);
-  text-align: left;
-  background: none;
-  border: none;
-  border-radius: 6px;
-  padding: 5px 6px;
-  cursor: pointer;
-}
-.saved-group-head:hover,
-.saved-group.open > .saved-group-head {
-  background: var(--tint);
-}
-
-.saved-group-caret {
-  font-size: 0.7rem;
-  color: var(--text-muted);
-  width: 0.9em;
-}
-
-.saved-group-name {
-  word-break: break-word;
-}
-
-.saved-group-count {
-  font-size: 0.7rem;
-  font-weight: 400;
-  color: var(--text-muted);
-  margin-right: auto;
-}
-
-/* Indent the rows so the heading they belong to stays readable as a heading. */
-.saved-group .saved-inputs-list {
-  padding-left: 14px;
 }
 
 /* ---- 保存した入力の編集モード ---- */
@@ -373,15 +383,6 @@ input:focus, textarea:focus, select:focus {
   background: var(--tint-strong);
   border-radius: 6px;
   padding: 6px 8px;
-}
-
-.editing-banner-group {
-  font-size: 0.68rem;
-  font-weight: 600;
-  color: var(--text-muted);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  padding: 0 6px;
 }
 
 .editing-banner-hint {
