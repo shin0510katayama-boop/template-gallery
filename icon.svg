@@ -1,13 +1,13 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
   <!-- Full-bleed background: OS applies its own icon mask, no inset/rounding here -->
-  <rect x="0" y="0" width="1024" height="1024" fill="#111111"/>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1024" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#383533"/>
+      <stop offset="0.5" stop-color="#292624"/>
+      <stop offset="1" stop-color="#221F1D"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="1024" height="1024" fill="url(#bg)"/>
 
-  <!-- Back Sheet -->
-  <rect x="352" y="252" width="380" height="380" rx="48" fill="none" stroke="#FFFFFF" stroke-opacity="0.55" stroke-width="10"/>
-
-  <!-- Front Sheet -->
-  <rect x="292" y="392" width="380" height="380" rx="48" fill="#111111" stroke="#FFFFFF" stroke-width="14"/>
-
-  <!-- Template Variable Glyph -->
-  <text x="482" y="620" font-family="Menlo, Consolas, monospace" font-size="200" font-weight="700" fill="#FFFFFF" text-anchor="middle" dominant-baseline="middle">{ }</text>
+  <circle cx="158" cy="158" r="49.5" fill="#E4BA10"/>
 </svg>
