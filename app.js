@@ -36,6 +36,7 @@ const dialog = document.getElementById("template-dialog");
 const form = document.getElementById("template-form");
 const dialogTitle = document.getElementById("dialog-title");
 const fieldId = document.getElementById("template-id");
+const btnDeleteTemplate = document.getElementById("btn-delete-template");
 const fieldTitle = document.getElementById("field-title");
 const fieldCategory = document.getElementById("field-category");
 const fieldBody = document.getElementById("field-body");
@@ -514,7 +515,6 @@ function render() {
         <div class="card-actions">
           <button class="btn btn-primary btn-copy" data-id="${t.id}">コピー</button>
           <button class="btn btn-ghost btn-edit" data-id="${t.id}">編集</button>
-          <button class="btn btn-ghost btn-danger btn-delete" data-id="${t.id}">削除</button>
         </div>
       </article>
     `;
@@ -922,6 +922,7 @@ function openDialogForNew() {
   fieldBrackets.clear();
   setSlotBlocks([]);
   setFieldBlocks([]);
+  btnDeleteTemplate.hidden = true;
   dialog.showModal();
   fieldTitle.focus();
   refreshPreview();
@@ -944,6 +945,7 @@ function openDialogForEdit(id) {
   const clonedFields = t.fields.map((f) => ({ ...f }));
   clonedFields.forEach((f) => fieldBrackets.set(f.id, `〔${f.label}〕`));
   setFieldBlocks(clonedFields);
+  btnDeleteTemplate.hidden = false;
   dialog.showModal();
   fieldTitle.focus();
   refreshPreview();
@@ -1025,6 +1027,23 @@ form.addEventListener("submit", () => {
 });
 
 document.getElementById("btn-cancel").addEventListener("click", () => dialog.close());
+
+// Deleting a template lives inside its edit dialog rather than on the card: a
+// template is hard to rebuild, so it should never be one stray tap away.
+btnDeleteTemplate.addEventListener("click", () => {
+  const t = templates.find((x) => x.id === fieldId.value);
+  if (!t) return;
+  const savedNote = t.savedInputs.length > 0 ? `\n保存した入力${t.savedInputs.length}件も一緒に消えます。` : "";
+  if (!confirm(`テンプレート「${t.title}」を削除しますか?${savedNote}\nこの操作は取り消せません。`)) return;
+  if (editingSavedInput.has(t.id)) cancelAutoSave();
+  editingSavedInput.delete(t.id);
+  savedSelection.delete(t.id);
+  templates = templates.filter((x) => x.id !== t.id);
+  saveTemplates();
+  dialog.close();
+  render();
+  showToast(`「${t.title}」を削除しました`);
+});
 document.getElementById("btn-new").addEventListener("click", openDialogForNew);
 document.getElementById("btn-new-empty").addEventListener("click", openDialogForNew);
 
@@ -1070,13 +1089,6 @@ grid.addEventListener("click", async (e) => {
     }
   } else if (target.classList.contains("btn-edit")) {
     openDialogForEdit(id);
-  } else if (target.classList.contains("btn-delete")) {
-    const t = templates.find((x) => x.id === id);
-    if (t && confirm(`「${t.title}」を削除しますか?`)) {
-      templates = templates.filter((x) => x.id !== id);
-      saveTemplates();
-      render();
-    }
   } else if (target.classList.contains("btn-clear-inputs")) {
     const t = templates.find((x) => x.id === id);
     if (!t) return;
