@@ -275,6 +275,7 @@ input:focus, textarea:focus, select:focus {
 .btn-edit-selected,
 .btn-rename-selected,
 .btn-delete-selected,
+.btn-delete-saved,
 .btn-exit-selection {
   font: inherit;
   font-size: 0.72rem;
@@ -297,9 +298,11 @@ input:focus, textarea:focus, select:focus {
 .btn-exit-selection:hover {
   background: var(--tint);
 }
-.btn-delete-selected {
+.btn-delete-selected,
+.btn-delete-saved {
   color: var(--danger);
 }
+.btn-delete-saved:hover,
 .btn-delete-selected:hover:not(:disabled) {
   background: color-mix(in srgb, var(--danger) 10%, transparent);
 }

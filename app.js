@@ -462,6 +462,7 @@ function render() {
             ${isEditing
               ? `<button type="button" class="btn-stop-editing" data-id="${t.id}">編集を終える</button>`
               : `<button type="button" class="btn-edit-saved" data-id="${t.id}" data-saved-id="${escapeAttr(s.id)}">編集</button>`}
+            <button type="button" class="btn-delete-saved" data-id="${t.id}" data-saved-id="${escapeAttr(s.id)}">削除</button>
           </div>`}
         </li>
       `;
@@ -1150,6 +1151,16 @@ grid.addEventListener("click", async (e) => {
     } catch {
       showToast("コピーに失敗しました");
     }
+  } else if (target.classList.contains("btn-delete-saved")) {
+    // One-off delete straight from the row, without going through selection mode.
+    const t = templates.find((x) => x.id === id);
+    if (!t) return;
+    const snap = t.savedInputs.find((s) => s.id === target.dataset.savedId);
+    if (!snap) return;
+    if (!confirm(`保存した入力「${snap.name}」を削除しますか?`)) return;
+    deleteSavedInputs(t, [snap]);
+    render();
+    showToast(`「${snap.name}」を削除しました`);
   } else if (target.classList.contains("btn-edit-saved")) {
     const t = templates.find((x) => x.id === id);
     if (!t) return;
