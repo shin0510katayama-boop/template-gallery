@@ -105,6 +105,10 @@
       <label for="saved-input-name">名前</label>
       <input type="text" id="saved-input-name" placeholder="例: 山田さん宛" />
 
+      <label for="saved-input-group">グループ（空欄なら未分類）</label>
+      <input type="text" id="saved-input-group" list="saved-input-group-list" placeholder="例: 5講" autocomplete="off" />
+      <datalist id="saved-input-group-list"></datalist>
+
       <div class="dialog-actions">
         <button type="button" id="btn-saved-input-cancel" class="btn btn-ghost">キャンセル</button>
         <button type="submit" id="btn-saved-input-submit" class="btn btn-primary">保存</button>

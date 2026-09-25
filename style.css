@@ -886,3 +886,33 @@ dialog::backdrop {
 }
 #btn-sync[data-state="on"]::before { background: var(--text); }
 #btn-sync[data-state="error"]::before { background: var(--danger); }
+
+/* ---- 一時保存のグループ ---- */
+.saved-group { display: flex; flex-direction: column; gap: 4px; }
+.saved-group + .saved-group { margin-top: 6px; }
+
+.saved-group-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 4px 2px;
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.saved-group-caret { width: 0.9em; }
+.saved-group-count {
+  font-weight: 400;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--tint);
+}
+
+/* 16px keeps iOS from zooming into the field. */
+#saved-input-form input { font-size: 16px; }
