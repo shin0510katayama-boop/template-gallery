@@ -793,6 +793,13 @@ dialog::backdrop {
   background: var(--surface);
   border-top: 1px solid var(--border);
 }
+/* Kept apart from 保存/キャンセル so it is not hit on the way to them. */
+#btn-delete-template[hidden] {
+  display: none;
+}
+#btn-delete-template {
+  margin-right: auto;
+}
 
 .toast {
   position: fixed;
