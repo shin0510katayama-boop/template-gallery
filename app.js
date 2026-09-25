@@ -128,7 +128,10 @@ function convertLegacyTokens(body, slots, t) {
 }
 
 function saveTemplates() {
+  // sync.js loads after this file, so it may not exist yet during startup.
+  if (typeof TemplateSync !== "undefined") TemplateSync.stamp();
   localStorage.setItem(STORAGE_KEY, JSON.stringify(templates));
+  if (typeof TemplateSync !== "undefined") TemplateSync.afterSave();
 }
 
 function uid() {

@@ -830,3 +830,59 @@ dialog::backdrop {
   color: var(--text-muted);
   opacity: 0.7;
 }
+
+/* ---- 同期 ---- */
+#sync-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 20px 20px 0;
+  max-height: 85vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+#sync-form > * { flex-shrink: 0; }
+
+#sync-form h2 {
+  margin: 0 0 8px;
+  font-size: 1.1rem;
+}
+
+#sync-form label {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin-top: 8px;
+}
+
+/* Inputs stay at 16px so iOS does not zoom in when they get focus. */
+#sync-form input { font-size: 16px; }
+
+.sync-note {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.sync-status {
+  margin: 4px 0 0;
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  background: var(--tint);
+  font-size: 0.85rem;
+}
+
+/* A small dot on the button says at a glance whether this device is syncing. */
+#btn-sync::before {
+  content: "";
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 6px;
+  border-radius: 50%;
+  vertical-align: middle;
+  background: var(--border);
+}
+#btn-sync[data-state="on"]::before { background: var(--text); }
+#btn-sync[data-state="error"]::before { background: var(--danger); }

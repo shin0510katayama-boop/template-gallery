@@ -21,6 +21,7 @@
         読み込み
         <input type="file" id="import-file" accept="application/json" hidden />
       </label>
+      <button id="btn-sync" class="btn btn-ghost" data-state="off" title="GitHubと同期">同期</button>
       <button id="btn-new" class="btn btn-primary">+ 新規テンプレート</button>
     </div>
   </header>
@@ -111,11 +112,33 @@
     </form>
   </dialog>
 
+  <!-- GitHub同期 -->
+  <dialog id="sync-dialog">
+    <form id="sync-form" method="dialog">
+      <h2>同期</h2>
+      <p class="sync-note">テンプレートと一時保存を非公開のGitHubリポジトリに置き、ほかの端末やClaudeからも読み書きできるようにします。</p>
+      <p id="sync-status" class="sync-status"></p>
+
+      <label for="sync-token">GitHubトークン</label>
+      <input type="password" id="sync-token" autocomplete="off" spellcheck="false" placeholder="github_pat_..." />
+
+      <label for="sync-repo">リポジトリ</label>
+      <input type="text" id="sync-repo" autocomplete="off" spellcheck="false" autocapitalize="off" />
+
+      <div class="dialog-actions">
+        <button type="button" id="btn-sync-disconnect" class="btn btn-ghost btn-danger" hidden>解除</button>
+        <button type="button" id="btn-sync-cancel" class="btn btn-ghost">キャンセル</button>
+        <button type="submit" class="btn btn-primary">保存して同期</button>
+      </div>
+    </form>
+  </dialog>
+
   <div id="toast" class="toast" hidden></div>
 
   <footer id="app-version" class="app-version"></footer>
 
   <script src="version.js"></script>
   <script src="app.js"></script>
+  <script src="sync.js"></script>
 </body>
 </html>
