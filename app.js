@@ -473,7 +473,9 @@ function render() {
 
     const picked = selectionOf(t);
     const selecting = !!picked;
-    const sortedSavedInputs = [...t.savedInputs].sort((a, b) => b.savedAt - a.savedAt);
+    // Shown in the order they were added (new ones at the bottom). Editing or
+    // renaming must never move a row — only grouping changes where it appears.
+    const sortedSavedInputs = t.savedInputs;
 
     const savedItemHtml = (s) => {
       const isEditing = !!editingSnap && editingSnap.id === s.id;
