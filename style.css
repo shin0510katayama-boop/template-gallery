@@ -429,6 +429,8 @@ input:focus, textarea:focus, select:focus {
   flex: 1;
 }
 
+.card-preview[data-id] { cursor: pointer; }
+
 .card-actions {
   display: flex;
   gap: 6px;
@@ -916,3 +918,45 @@ dialog::backdrop {
 
 /* 16px keeps iOS from zooming into the field. */
 #saved-input-form input { font-size: 16px; }
+
+/* ---- 全文プレビュー ---- */
+#preview-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 20px 20px 0;
+  max-height: 85vh;
+}
+
+#preview-form > * { flex-shrink: 0; }
+
+#preview-form h2 {
+  margin: 0;
+  font-size: 1.1rem;
+  overflow-wrap: anywhere;
+}
+
+.preview-note {
+  margin: 0 0 4px;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+/* Only the text scrolls; the title and the buttons stay put. */
+#preview-form > .preview-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: var(--bg);
+  color: var(--text);
+  user-select: text;
+  -webkit-user-select: text;
+}

@@ -116,6 +116,19 @@
     </form>
   </dialog>
 
+  <!-- 全文プレビュー -->
+  <dialog id="preview-dialog">
+    <form id="preview-form" method="dialog">
+      <h2 id="preview-title"></h2>
+      <p class="preview-note">いまの入力・選択でコピーされる内容</p>
+      <div id="preview-body" class="preview-body"></div>
+      <div class="dialog-actions">
+        <button type="button" id="btn-preview-close" class="btn btn-ghost">閉じる</button>
+        <button type="button" id="btn-preview-copy" class="btn btn-primary">コピー</button>
+      </div>
+    </form>
+  </dialog>
+
   <!-- GitHub同期 -->
   <dialog id="sync-dialog">
     <form id="sync-form" method="dialog">

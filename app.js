@@ -559,9 +559,10 @@ function render() {
         ${slotRows}
         ${fieldRows}
         ${savedInputsRow}
-        <p class="card-preview">${escapeHtml(resolveBody(t))}</p>
+        <p class="card-preview" data-id="${t.id}" title="タップで全文を表示">${escapeHtml(resolveBody(t))}</p>
         <div class="card-actions">
           <button class="btn btn-primary btn-copy" data-id="${t.id}">コピー</button>
+          <button class="btn btn-ghost btn-preview" data-id="${t.id}">プレビュー</button>
           <button class="btn btn-ghost btn-edit" data-id="${t.id}">編集</button>
         </div>
       </article>
@@ -1144,6 +1145,8 @@ grid.addEventListener("click", async (e) => {
     } catch {
       showToast("コピーに失敗しました");
     }
+  } else if (target.classList.contains("btn-preview") || target.classList.contains("card-preview")) {
+    openPreviewDialog(id);
   } else if (target.classList.contains("btn-edit")) {
     openDialogForEdit(id);
   } else if (target.classList.contains("btn-clear-inputs")) {
@@ -1265,6 +1268,48 @@ const savedInputGroupList = document.getElementById("saved-input-group-list");
 
 /** What the dialog is currently filling in: a brand new saved input, or an existing one. */
 let savedInputDialogCtx = null;
+
+// ---- Dialog: full-text preview ----
+// The card only shows the first few lines; this shows everything the コピー button
+// would copy right now, with the card's current inputs and branch choices.
+
+const previewDialog = document.getElementById("preview-dialog");
+const previewTitle = document.getElementById("preview-title");
+const previewBody = document.getElementById("preview-body");
+let previewTemplateId = null;
+
+function openPreviewDialog(id) {
+  const t = templates.find((x) => x.id === id);
+  if (!t) return;
+  previewTemplateId = id;
+  previewTitle.textContent = t.title;
+  previewBody.textContent = resolveBody(t);
+  if (typeof previewDialog.showModal === "function") previewDialog.showModal();
+  previewBody.scrollTop = 0;
+}
+
+function closePreviewDialog() {
+  previewTemplateId = null;
+  if (typeof previewDialog.close === "function") previewDialog.close();
+}
+
+document.getElementById("btn-preview-close").addEventListener("click", closePreviewDialog);
+document.getElementById("btn-preview-copy").addEventListener("click", async () => {
+  const t = templates.find((x) => x.id === previewTemplateId);
+  if (!t) return;
+  try {
+    await navigator.clipboard.writeText(resolveBody(t));
+    showToast("コピーしました ✓");
+    closePreviewDialog();
+  } catch {
+    showToast("コピーに失敗しました");
+  }
+});
+previewDialog.addEventListener("close", () => { previewTemplateId = null; });
+// Tapping the dimmed area outside the box closes it.
+previewDialog.addEventListener("click", (e) => {
+  if (e.target === previewDialog) closePreviewDialog();
+});
 
 function openSavedInputDialog(ctx) {
   const t = templates.find((x) => x.id === ctx.templateId);
