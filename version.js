@@ -1,2 +1,2 @@
-window.APP_VERSION = "1.13.3";
-window.APP_BUILT_AT = "2026-10-24T01:42:48.138Z";
+window.APP_VERSION = "1.13.4";
+window.APP_BUILT_AT = "2026-10-24T02:19:13.480Z";
