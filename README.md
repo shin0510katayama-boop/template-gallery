@@ -14,7 +14,23 @@
 4. 【分岐】〔入力欄〕を使うカードでは、入力した内容を「＋ この内容を保存」で一時保存できる。保存した内容は各行の「コピー」でワンタップコピー、「編集」で呼び出して続きを書ける、「削除」でその1件を消せる。「選択」を押すとチェックボックスが出て、複数まとめて削除（1件だけ選べば編集・名前とグループの変更）ができる。一覧は追加した順（新しいものが下）で、編集しても並びは変わらない。保存時にグループ（例: 5講）を付けると、そのカードの一時保存がグループごとの見出しにまとまる（見出しをタップで開閉。グループを使っていないカードは今までどおりの一覧）
 5. 「書き出し」でJSONファイルとしてバックアップ、「読み込み」で復元・他端末への移行
 
-データはブラウザの localStorage に保存されます。「同期」にGitHubのトークンを入れると、非公開リポジトリ `shin0510katayama-boop/template-data` の `templates.json` とも同期します（開いたとき・前面に戻したとき・保存の1.5秒後）。テンプレート単位で新しい方が勝ち、削除は記録して復活させません。バックエンド不要の静的サイトです。
+データはブラウザの localStorage に保存されます。「同期」に合言葉を入れると、このアプリの `/api/sync`（Vercelの関数＋Upstash Redis）とも同期します（開いたとき・前面に戻したとき・保存の1.5秒後）。テンプレート単位で新しい方が勝ち、削除は記録して復活させません。合言葉に期限はありません（ver1.14.0でGitHubトークン方式から切り替え）。
+
+### サーバー側の設定（Vercel）
+
+- Storage → Upstash for Redis を作ってこのプロジェクトに接続（`KV_REST_API_URL` / `KV_REST_API_TOKEN` が入る）
+- 環境変数 `SYNC_SECRET` に合言葉を入れる → 再デプロイ
+- 書き込みのたびに直前の版を `template:sync:history` に30件まで残す
+
+### PCから読み書きする（AI・定期タスク用）
+
+```
+node tools/sync-cli.mjs pull      # %USERPROFILE%\.template-sync\work\templates.json に取得
+# templates.json を編集（tools/add-saved-inputs.mjs などは work フォルダで実行）
+node tools/sync-cli.mjs push      # 変更に印を付け、スマホ側の変更とマージして書き込む
+```
+
+合言葉は `%USERPROFILE%\.template-sync\secret.txt`（またはTEMPLATE_SYNC_SECRET）から読む。work フォルダには一時保存（人名を含む）が入るので、gitに入れない。
 
 ## ローカルで確認する場合
 

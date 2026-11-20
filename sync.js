@@ -1,19 +1,20 @@
-// ---- GitHub同期 ----
-// localStorage stays the working copy (the app keeps working offline); a private
-// GitHub repo holds a shared copy so the same data can be read and edited from
-// elsewhere. Merging is per template: whichever side touched it last (_mtime)
+// ---- 同期 ----
+// localStorage stays the working copy (the app keeps working offline); the app's
+// own /api/sync (Vercel + Redis) holds a shared copy so the same data can be read
+// and edited from other devices and from the PC tools. Access needs the 合言葉
+// (SYNC_SECRET). Merging is per template: whichever side touched it last (_mtime)
 // wins, and deletions are remembered as tombstones so they do not come back.
 //
 // Loaded after app.js, so it shares that script's globals (templates, render,
-// STORAGE_KEY, autoSavePendingId, showToast).
+// STORAGE_KEY, autoSavePendingId, showToast, migrateTemplate).
 
-const SYNC_KEY = "templateCopier.sync.v1";
-const SYNC_DEFAULT_REPO = "shin0510katayama-boop/template-data";
-const SYNC_PATH = "templates.json";
+const SYNC_KEY = "templateCopier.sync.v2";
+const SYNC_OLD_KEY = "templateCopier.sync.v1"; // GitHub sync (until ver1.13)
+const SYNC_URL = "/api/sync";
 const TOMBSTONE_TTL = 90 * 24 * 60 * 60 * 1000;
 
 const TemplateSync = (() => {
-  /** @type {{token:string,repo:string,sha:string|null,deleted:Object<string,number>,dirty:boolean,lastSyncedAt:number|null,lastError:string|null}} */
+  /** @type {{secret:string,version:number|null,deleted:Object<string,number>,dirty:boolean,lastSyncedAt:number|null,lastError:string|null}} */
   let state = loadState();
   /** id -> JSON of the template as last written, to spot which ones changed. */
   let snapshot = new Map();
@@ -25,9 +26,13 @@ const TemplateSync = (() => {
   const listeners = new Set();
 
   function loadState() {
-    const base = { token: "", repo: SYNC_DEFAULT_REPO, sha: null, deleted: {}, dirty: false, lastSyncedAt: null, lastError: null };
+    const base = { secret: "", version: null, deleted: {}, dirty: false, lastSyncedAt: null, lastError: null };
     try {
-      return { ...base, ...JSON.parse(localStorage.getItem(SYNC_KEY) || "{}") };
+      const saved = localStorage.getItem(SYNC_KEY);
+      if (saved) return { ...base, ...JSON.parse(saved) };
+      // Coming from the GitHub sync: keep its deletion records, drop the token.
+      const old = JSON.parse(localStorage.getItem(SYNC_OLD_KEY) || "{}");
+      return { ...base, deleted: old.deleted || {}, dirty: !!old.token || !!old.dirty };
     } catch {
       return base;
     }
@@ -35,6 +40,7 @@ const TemplateSync = (() => {
 
   function saveState() {
     localStorage.setItem(SYNC_KEY, JSON.stringify(state));
+    localStorage.removeItem(SYNC_OLD_KEY);
     listeners.forEach((fn) => fn());
   }
 
@@ -69,7 +75,7 @@ const TemplateSync = (() => {
     saveSeq++;
     state.dirty = true;
     saveState();
-    if (!state.token) return;
+    if (!state.secret) return;
     if (pushTimer) clearTimeout(pushTimer);
     pushTimer = setTimeout(() => { pushTimer = null; sync(); }, 1500);
   }
@@ -91,37 +97,23 @@ const TemplateSync = (() => {
     retryTimer = setTimeout(() => { retryTimer = null; sync(); }, 3000);
   }
 
-  function b64decode(b64) {
-    const bin = atob(b64.replace(/\s/g, ""));
-    return new TextDecoder().decode(Uint8Array.from(bin, (c) => c.charCodeAt(0)));
-  }
-
-  function b64encode(str) {
-    const bytes = new TextEncoder().encode(str);
-    let bin = "";
-    for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-    return btoa(bin);
-  }
-
   async function api(method, body) {
-    const res = await fetch(`https://api.github.com/repos/${state.repo}/contents/${SYNC_PATH}`, {
+    const res = await fetch(SYNC_URL, {
       method,
       cache: "no-store",
       headers: {
-        Accept: "application/vnd.github+json",
-        Authorization: `Bearer ${state.token}`,
-        "X-GitHub-Api-Version": "2022-11-28",
+        Authorization: `Bearer ${state.secret}`,
         ...(body ? { "Content-Type": "application/json" } : {}),
       },
       body: body ? JSON.stringify(body) : undefined,
     });
-    if (res.status === 404 && method === "GET") return null;
-    if (!res.ok) {
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok && res.status !== 409) {
       const err = new Error(`HTTP ${res.status}`);
       err.status = res.status;
       throw err;
     }
-    return res.json();
+    return { status: res.status, ...json };
   }
 
   function normalize(data) {
@@ -156,19 +148,19 @@ const TemplateSync = (() => {
     };
   }
 
-  function serialize(data) {
-    return JSON.stringify({ schema: 1, templates: data.templates, deleted: data.deleted }, null, 2) + "\n";
+  function toPayload(data) {
+    return { schema: 1, templates: data.templates, deleted: data.deleted };
   }
 
   function describeError(e) {
-    if (e.status === 401) return "トークンが無効です";
-    if (e.status === 403 || e.status === 404) return "リポジトリに書き込めません（トークンの権限を確認）";
+    if (e.status === 401) return "合言葉が違います";
+    if (e.status === 503) return "同期の保存先がまだ準備されていません";
     if (!navigator.onLine) return "オフラインです";
     return `同期に失敗しました（${e.message}）`;
   }
 
   async function sync() {
-    if (!state.token) return;
+    if (!state.secret) return;
     if (syncing) { again = true; return; }
     if (busy()) { retryLater(); return; }
     syncing = true;
@@ -176,10 +168,10 @@ const TemplateSync = (() => {
       for (let attempt = 0; attempt < 3; attempt++) {
         const seqAtStart = saveSeq;
         const res = await api("GET");
-        const remoteSha = res ? res.sha : null;
-        if (res && remoteSha === state.sha && !state.dirty) break;
+        const remoteVersion = res.version || 0;
+        if (remoteVersion === state.version && !state.dirty) break;
 
-        const remote = res ? normalize(JSON.parse(b64decode(res.content))) : { templates: [], deleted: {} };
+        const remote = res.data ? normalize(res.data) : { templates: [], deleted: {} };
         if (saveSeq !== seqAtStart || busy()) { again = true; break; }
         const merged = merge({ templates, deleted: state.deleted }, remote);
 
@@ -191,23 +183,14 @@ const TemplateSync = (() => {
         }
         state.deleted = merged.deleted;
 
-        const body = serialize(merged);
-        let newSha = remoteSha;
-        if (!res || serialize(remote) !== body) {
-          try {
-            const put = await api("PUT", {
-              message: `sync from app ${new Date().toISOString()}`,
-              content: b64encode(body),
-              ...(remoteSha ? { sha: remoteSha } : {}),
-            });
-            newSha = put.content.sha;
-          } catch (e) {
-            // Someone else wrote in between: start over from their version.
-            if (e.status === 409 || e.status === 422) continue;
-            throw e;
-          }
+        let newVersion = remoteVersion;
+        if (!res.data || JSON.stringify(toPayload(remote)) !== JSON.stringify(toPayload(merged))) {
+          const put = await api("PUT", { baseVersion: remoteVersion, data: toPayload(merged) });
+          // Someone else wrote in between: start over from their version.
+          if (put.status === 409) continue;
+          newVersion = put.version;
         }
-        state.sha = newSha;
+        state.version = newVersion;
         if (saveSeq === seqAtStart) state.dirty = false;
         else again = true;
         state.lastSyncedAt = Date.now();
@@ -223,20 +206,17 @@ const TemplateSync = (() => {
     }
   }
 
-  function configure(token, repo) {
-    const changedTarget = repo !== state.repo || token !== state.token;
-    state.token = token;
-    state.repo = repo || SYNC_DEFAULT_REPO;
-    // A new target has never seen our data, so treat everything local as unsent.
-    if (changedTarget) { state.sha = null; state.dirty = true; }
+  function configure(secret) {
+    if (secret !== state.secret) { state.version = null; state.dirty = true; }
+    state.secret = secret;
     state.lastError = null;
     saveState();
     return sync();
   }
 
   function disconnect() {
-    state.token = "";
-    state.sha = null;
+    state.secret = "";
+    state.version = null;
     state.lastError = null;
     saveState();
   }
@@ -252,7 +232,7 @@ const TemplateSync = (() => {
     if (document.visibilityState === "visible") sync();
   });
   window.addEventListener("online", () => sync());
-  if (state.token) sync();
+  if (state.secret) sync();
 
   return {
     stamp,
@@ -271,14 +251,13 @@ const TemplateSync = (() => {
   const btn = document.getElementById("btn-sync");
   const dialog = document.getElementById("sync-dialog");
   const form = document.getElementById("sync-form");
-  const tokenField = document.getElementById("sync-token");
-  const repoField = document.getElementById("sync-repo");
+  const secretField = document.getElementById("sync-secret");
   const status = document.getElementById("sync-status");
   const btnDisconnect = document.getElementById("btn-sync-disconnect");
 
   function statusText() {
     const s = TemplateSync.state;
-    if (!s.token) return "未設定（この端末の中だけに保存されています）";
+    if (!s.secret) return "未設定（この端末の中だけに保存されています）";
     if (TemplateSync.syncing) return "同期中…";
     if (s.lastError) return s.lastError;
     if (s.lastSyncedAt) {
@@ -290,25 +269,23 @@ const TemplateSync = (() => {
 
   function refresh() {
     const s = TemplateSync.state;
-    btn.dataset.state = !s.token ? "off" : s.lastError ? "error" : "on";
+    btn.dataset.state = !s.secret ? "off" : s.lastError ? "error" : "on";
     status.textContent = statusText();
-    btnDisconnect.hidden = !s.token;
+    btnDisconnect.hidden = !s.secret;
   }
 
   btn.addEventListener("click", () => {
-    const s = TemplateSync.state;
-    tokenField.value = s.token;
-    repoField.value = s.repo;
+    secretField.value = TemplateSync.state.secret;
     refresh();
     dialog.showModal();
   });
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
-    const token = tokenField.value.trim();
-    if (!token) { showToast("トークンを入力してください"); return; }
+    const secret = secretField.value.trim();
+    if (!secret) { showToast("合言葉を入力してください"); return; }
     dialog.close();
-    await TemplateSync.configure(token, repoField.value.trim());
+    await TemplateSync.configure(secret);
     const err = TemplateSync.state.lastError;
     showToast(err || "同期しました");
   });
